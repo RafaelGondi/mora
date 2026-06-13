@@ -1,0 +1,3 @@
+Fila por categoria com drag, capas locais sem Storage e ajustes de UI.
+
+Reordenacao por tipo na Fila (sem Todos), microinteracoes no arraste, galeria salva no aparelho, alinhamento da home e campos creator/whereToWatch.

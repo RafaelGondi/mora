@@ -3,12 +3,15 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import CoverImage from '@/components/media/CoverImage.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
-import { TYPE_LABELS } from '@/types/media'
+import { TYPE_LABELS, itemCreator, supportsWhereToWatch } from '@/types/media'
 import type { BacklogItem } from '@/types/media'
 
 const props = defineProps<{
   item: BacklogItem
   variant?: 'grid' | 'row' | 'strip'
+  reorderable?: boolean
+  dragActive?: boolean
+  suppressClick?: boolean
 }>()
 
 const router = useRouter()
@@ -26,14 +29,22 @@ const typeColor = computed(() => {
 })
 
 function openDetail() {
+  if (props.suppressClick) return
   router.push(`/item/${props.item.id}`)
 }
 </script>
 
 <template>
   <article
-    class="card tap-scale"
-    :class="`card--${variant ?? 'grid'}`"
+    class="card"
+    :class="[
+      `card--${variant ?? 'grid'}`,
+      {
+        'card--reorderable': reorderable && variant === 'row',
+        'card--drag-active': dragActive && variant === 'row',
+        'tap-scale': !reorderable,
+      },
+    ]"
     role="button"
     tabindex="0"
     @click="openDetail"
@@ -52,8 +63,11 @@ function openDetail() {
     <div class="card__body">
       <span class="card__type" :style="{ color: typeColor }">{{ TYPE_LABELS[item.type] }}</span>
       <h3 class="card__title">{{ item.title }}</h3>
-      <p v-if="item.subtitle || item.year" class="card__meta">
-        {{ item.subtitle || item.year }}
+      <p v-if="itemCreator(item) || item.year" class="card__meta">
+        {{ [itemCreator(item), item.year].filter(Boolean).join(' · ') }}
+      </p>
+      <p v-if="supportsWhereToWatch(item.type) && item.whereToWatch" class="card__watch">
+        {{ item.whereToWatch }}
       </p>
       <p v-if="item.userRating" class="card__rating" :aria-label="`Nota ${item.userRating} de 5`">
         <span aria-hidden="true">★</span> {{ item.userRating }}/5
@@ -84,11 +98,34 @@ function openDetail() {
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.25s ease, transform 0.25s cubic-bezier(0.34, 1.2, 0.64, 1);
+  transition:
+    box-shadow 0.28s var(--ease-smooth),
+    transform 0.28s var(--ease-spring),
+    border-color 0.28s var(--ease-smooth),
+    background 0.28s var(--ease-smooth);
 }
 
-.card--row:active {
+.card--row:active:not(.card--reorderable) {
   box-shadow: var(--shadow-md);
+}
+
+.card--row.card--reorderable {
+  cursor: grab;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.card--row.card--reorderable:active,
+.card--row.card--drag-active {
+  cursor: grabbing;
+}
+
+.card--row.card--reorderable:active .card__cover :deep(.cover-img),
+.card--row.card--reorderable:active .card__shine,
+.card--row.card--drag-active .card__cover :deep(.cover-img),
+.card--row.card--drag-active .card__shine {
+  transform: none;
 }
 
 .card--strip {
@@ -197,6 +234,13 @@ function openDetail() {
 
 .card__rating span {
   font-size: 11px;
+}
+
+.card__watch {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  width: fit-content;
 }
 
 @media (prefers-reduced-motion: reduce) {

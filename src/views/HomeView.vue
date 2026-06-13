@@ -90,12 +90,12 @@ watch(() => store.totalCount, () => animateTotal())
         @action="router.push('/search')"
       />
 
-      <div v-else class="filmstrip">
+      <div v-else class="recent__list">
         <MediaCard
           v-for="item in store.recentItems"
           :key="item.id"
           :item="item"
-          variant="strip"
+          variant="row"
         />
       </div>
     </section>
@@ -206,7 +206,6 @@ watch(() => store.totalCount, () => animateTotal())
   flex-direction: column;
   gap: 10px;
   margin-bottom: 32px;
-  padding: 0 4px;
 }
 
 .types__row {
@@ -280,22 +279,15 @@ watch(() => store.totalCount, () => animateTotal())
   color: var(--accent);
 }
 
-.filmstrip {
+.recent__list {
   display: flex;
-  gap: 14px;
-  overflow-x: auto;
-  padding-bottom: 8px;
-  margin: 0 -20px;
-  padding-left: 20px;
-  padding-right: 20px;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
 }
 
-.filmstrip::-webkit-scrollbar {
-  display: none;
+.recent__list :deep(.card--row) {
+  width: 100%;
 }
 
 @media (prefers-reduced-motion: reduce) {

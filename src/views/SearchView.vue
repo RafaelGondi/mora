@@ -74,10 +74,11 @@ function handleAdd(result: (typeof results.value)[number]) {
 
 function handleManual(data: {
   title: string
-  subtitle?: string
+  creator?: string
   year?: string
   coverUrl?: string
   overview?: string
+  whereToWatch?: string
 }) {
   store.addManual({ type: activeType.value, ...data })
   notifyAdded()

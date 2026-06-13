@@ -13,17 +13,52 @@ import type {
   MediaType,
   SearchResult,
 } from '@/types/media'
+import { MEDIA_TYPES } from '@/types/media'
+import { isLocalCover } from '@/utils/coverUrl'
 
 const STORAGE_KEY = 'mora-backlog'
 const LEGACY_STORAGE_KEY = 'ante-backlog'
 
 export type SyncStatus = 'local' | 'connecting' | 'synced' | 'error'
 
+function compareWithinType(a: BacklogItem, b: BacklogItem): number {
+  const orderA = a.sortOrder ?? Number.MAX_SAFE_INTEGER
+  const orderB = b.sortOrder ?? Number.MAX_SAFE_INTEGER
+  if (orderA !== orderB) return orderA - orderB
+  return b.addedAt.localeCompare(a.addedAt)
+}
+
+function sortWithinType(list: BacklogItem[]): BacklogItem[] {
+  return [...list].sort(compareWithinType)
+}
+
+function ensureSortOrders(list: BacklogItem[]): BacklogItem[] {
+  const result = list.map((item) => ({ ...item }))
+
+  for (const type of MEDIA_TYPES) {
+    const group = result.filter((item) => item.type === type)
+    const ordered = sortWithinType(group)
+    ordered.forEach((item, index) => {
+      const ref = result.find((entry) => entry.id === item.id)
+      if (ref) ref.sortOrder = index
+    })
+  }
+
+  return result
+}
+
+function normalizeItem(item: BacklogItem): BacklogItem {
+  return {
+    ...item,
+    creator: item.creator ?? item.subtitle,
+  }
+}
+
 function loadItems(): BacklogItem[] {
   try {
     const raw =
       localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY)
-    const items = raw ? (JSON.parse(raw) as BacklogItem[]) : []
+    const items = raw ? ensureSortOrders((JSON.parse(raw) as BacklogItem[]).map(normalizeItem)) : []
     if (!localStorage.getItem(STORAGE_KEY) && localStorage.getItem(LEGACY_STORAGE_KEY)) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
     }
@@ -48,7 +83,16 @@ function uid() {
 function toBacklogItem(
   data: Pick<
     BacklogItem,
-    'externalId' | 'type' | 'title' | 'subtitle' | 'coverUrl' | 'overview' | 'year' | 'rating' | 'manual'
+    | 'externalId'
+    | 'type'
+    | 'title'
+    | 'creator'
+    | 'coverUrl'
+    | 'overview'
+    | 'year'
+    | 'rating'
+    | 'manual'
+    | 'whereToWatch'
   >,
 ): BacklogItem {
   const now = new Date().toISOString()
@@ -57,7 +101,7 @@ function toBacklogItem(
     externalId: data.externalId,
     type: data.type,
     title: data.title,
-    subtitle: data.subtitle,
+    creator: data.creator,
     coverUrl: data.coverUrl,
     status: 'want',
     addedAt: now,
@@ -66,6 +110,7 @@ function toBacklogItem(
     year: data.year,
     rating: data.rating,
     manual: data.manual,
+    whereToWatch: data.whereToWatch,
   }
 }
 
@@ -76,12 +121,22 @@ function mergeItems(remote: BacklogItem[], local: BacklogItem[]): BacklogItem[] 
 
   for (const item of local) {
     const remoteItem = byId.get(item.id)
-    if (!remoteItem || item.updatedAt > remoteItem.updatedAt) {
+    if (!remoteItem) {
       byId.set(item.id, item)
+      continue
     }
+
+    const localIsNewer = item.updatedAt > remoteItem.updatedAt
+    let merged = localIsNewer ? item : remoteItem
+
+    if (isLocalCover(item.coverUrl) && !merged.coverUrl) {
+      merged = { ...merged, coverUrl: item.coverUrl }
+    }
+
+    byId.set(item.id, merged)
   }
 
-  return [...byId.values()].sort((a, b) => b.addedAt.localeCompare(a.addedAt))
+  return [...byId.values()]
 }
 
 function localOnlyItems(remote: BacklogItem[], merged: BacklogItem[]) {
@@ -187,7 +242,7 @@ export const useBacklogStore = defineStore('backlog', () => {
         items.value,
         (remoteItems) => {
           applyingRemote = true
-          const merged = mergeItems(remoteItems, items.value)
+          const merged = ensureSortOrders(mergeItems(remoteItems, items.value).map(normalizeItem))
           items.value = merged
           cacheItems(merged)
           applyingRemote = false
@@ -207,6 +262,8 @@ export const useBacklogStore = defineStore('backlog', () => {
       syncError.value = err instanceof Error ? err.message : 'Erro ao conectar com Firebase'
     }
   }
+
+  const orderedItems = computed(() => items.value)
 
   const totalCount = computed(() => items.value.length)
 
@@ -234,6 +291,13 @@ export const useBacklogStore = defineStore('backlog', () => {
     return map
   })
 
+  function nextTopSortOrder(type: MediaType) {
+    const sameType = items.value.filter((item) => item.type === type)
+    if (!sameType.length) return 0
+    const min = Math.min(...sameType.map((item) => item.sortOrder ?? 0))
+    return min - 1
+  }
+
   function isInBacklog(externalId: string, type: MediaType) {
     return items.value.some((i) => i.externalId === externalId && i.type === type)
   }
@@ -244,14 +308,15 @@ export const useBacklogStore = defineStore('backlog', () => {
       externalId: result.externalId,
       type: result.type,
       title: result.title,
-      subtitle: result.subtitle,
+      creator: result.creator ?? result.subtitle,
       coverUrl: result.coverUrl,
       overview: result.overview,
       year: result.year,
       rating: result.rating,
       manual: result.manual,
     })
-    items.value.unshift(item)
+    item.sortOrder = nextTopSortOrder(result.type)
+    items.value.push(item)
     void persistItem(item)
     return item
   }
@@ -264,13 +329,15 @@ export const useBacklogStore = defineStore('backlog', () => {
       externalId: `manual-${uid()}`,
       type: input.type,
       title,
-      subtitle: input.subtitle?.trim() || undefined,
+      creator: input.creator?.trim() || undefined,
       coverUrl: input.coverUrl?.trim() || undefined,
       overview: input.overview?.trim() || undefined,
       year: input.year?.trim() || undefined,
+      whereToWatch: input.whereToWatch?.trim() || undefined,
       manual: true,
     })
-    items.value.unshift(item)
+    item.sortOrder = nextTopSortOrder(input.type)
+    items.value.push(item)
     void persistItem(item)
     return item
   }
@@ -316,24 +383,144 @@ export const useBacklogStore = defineStore('backlog', () => {
     }
   }
 
+  function updateCreator(id: string, creator: string) {
+    const item = items.value.find((i) => i.id === id)
+    if (item) {
+      item.creator = creator.trim() || undefined
+      item.updatedAt = new Date().toISOString()
+      void persistItem(item)
+    }
+  }
+
+  function updateWhereToWatch(id: string, whereToWatch: string) {
+    const item = items.value.find((i) => i.id === id)
+    if (item) {
+      item.whereToWatch = whereToWatch.trim() || undefined
+      item.updatedAt = new Date().toISOString()
+      void persistItem(item)
+    }
+  }
+
   function getItem(id: string) {
     return items.value.find((i) => i.id === id)
   }
 
-  function filteredItems(type?: MediaType | null, status?: BacklogStatus | null) {
-    return items.value.filter((i) => {
-      if (type && i.type !== type) return false
-      if (status && i.status !== status) return false
+  function itemsOfType(type: MediaType) {
+    return sortWithinType(items.value.filter((item) => item.type === type))
+  }
+
+  function itemPosition(id: string) {
+    const item = items.value.find((entry) => entry.id === id)
+    if (!item) return -1
+    return itemsOfType(item.type).findIndex((entry) => entry.id === id)
+  }
+
+  function applyTypeOrder(type: MediaType, orderedIds: string[]) {
+    const before = new Map(items.value.map((item) => [item.id, item.sortOrder]))
+    const now = new Date().toISOString()
+
+    orderedIds.forEach((id, index) => {
+      const item = items.value.find((entry) => entry.id === id)
+      if (!item || item.type !== type) return
+      if (item.sortOrder !== index) {
+        item.sortOrder = index
+        item.updatedAt = now
+      }
+    })
+
+    cacheItems(items.value)
+
+    for (const item of items.value) {
+      if (item.type === type && before.get(item.id) !== item.sortOrder) {
+        void persistItem(item)
+      }
+    }
+  }
+
+  function moveToTop(id: string) {
+    const item = items.value.find((entry) => entry.id === id)
+    if (!item) return
+
+    const ordered = itemsOfType(item.type)
+    const index = ordered.findIndex((entry) => entry.id === id)
+    if (index <= 0) return
+
+    const [picked] = ordered.splice(index, 1)
+    if (!picked) return
+    ordered.unshift(picked)
+    applyTypeOrder(item.type, ordered.map((entry) => entry.id))
+  }
+
+  function moveUp(id: string) {
+    const item = items.value.find((entry) => entry.id === id)
+    if (!item) return
+
+    const ordered = itemsOfType(item.type)
+    const index = ordered.findIndex((entry) => entry.id === id)
+    if (index <= 0) return
+
+    const prev = ordered[index - 1]
+    const current = ordered[index]
+    if (!prev || !current) return
+
+    ordered[index - 1] = current
+    ordered[index] = prev
+    applyTypeOrder(item.type, ordered.map((entry) => entry.id))
+  }
+
+  function moveDown(id: string) {
+    const item = items.value.find((entry) => entry.id === id)
+    if (!item) return
+
+    const ordered = itemsOfType(item.type)
+    const index = ordered.findIndex((entry) => entry.id === id)
+    if (index < 0 || index >= ordered.length - 1) return
+
+    const next = ordered[index + 1]
+    const current = ordered[index]
+    if (!next || !current) return
+
+    ordered[index + 1] = current
+    ordered[index] = next
+    applyTypeOrder(item.type, ordered.map((entry) => entry.id))
+  }
+
+  function filteredItems(
+    type: MediaType,
+    status?: BacklogStatus | null,
+    creatorQuery?: string | null,
+  ) {
+    const query = creatorQuery?.trim().toLowerCase()
+    const list = items.value.filter((item) => {
+      if (item.type !== type) return false
+      if (status && item.status !== status) return false
+      if (query) {
+        const creator = (item.creator ?? item.subtitle ?? '').toLowerCase()
+        if (!creator.includes(query)) return false
+      }
       return true
     })
+
+    return sortWithinType(list)
+  }
+
+  function uniqueCreatorsFor(type: MediaType) {
+    const names = new Set<string>()
+    for (const item of items.value) {
+      if (item.type !== type) continue
+      const name = item.creator?.trim()
+      if (name) names.add(name)
+    }
+    return [...names].sort((a, b) => a.localeCompare(b, 'pt'))
   }
 
   const recentItems = computed(() =>
-    [...items.value].sort((a, b) => b.addedAt.localeCompare(a.addedAt)).slice(0, 6),
+    [...items.value].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 6),
   )
 
   return {
     items,
+    orderedItems,
     syncStatus,
     syncError,
     firebaseUid,
@@ -350,6 +537,14 @@ export const useBacklogStore = defineStore('backlog', () => {
     updateNotes,
     updateUserRating,
     updateCoverUrl,
+    updateCreator,
+    updateWhereToWatch,
+    moveToTop,
+    moveUp,
+    moveDown,
+    applyTypeOrder,
+    itemPosition,
+    uniqueCreatorsFor,
     getItem,
     filteredItems,
   }

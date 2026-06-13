@@ -2,7 +2,6 @@ import { initializeApp, type FirebaseApp } from 'firebase/app'
 import {
   getAuth,
   signInAnonymously,
-  onAuthStateChanged,
   type Auth,
   type User,
 } from 'firebase/auth'
@@ -12,7 +11,9 @@ import {
   persistentMultipleTabManager,
   type Firestore,
 } from 'firebase/firestore'
-import { getStorage, type FirebaseStorage } from 'firebase/storage'
+import { withTimeout } from '@/utils/withTimeout'
+
+const AUTH_TIMEOUT_MS = 12_000
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -32,15 +33,12 @@ export function isFirebaseConfigured(): boolean {
   )
 }
 
-export function isFirebaseStorageConfigured(): boolean {
-  return isFirebaseConfigured() && Boolean(firebaseConfig.storageBucket)
-}
-
 let app: FirebaseApp | null = null
 let auth: Auth | null = null
 let db: Firestore | null = null
-let storage: FirebaseStorage | null = null
-let initPromise: Promise<User | null> | null = null
+let cachedUser: User | null = null
+let authAttempted = false
+let inflightAuth: Promise<User | null> | null = null
 
 export function getFirebaseApp(): FirebaseApp {
   if (!isFirebaseConfigured()) {
@@ -64,53 +62,65 @@ export function getFirestoreDb(): Firestore {
   return db
 }
 
-export function getFirebaseStorage(): FirebaseStorage {
-  if (!isFirebaseStorageConfigured()) {
-    throw new Error('Firebase Storage não configurado. Defina VITE_FIREBASE_STORAGE_BUCKET no .env')
-  }
-  if (!storage) {
-    const bucket = firebaseConfig.storageBucket.replace(/^gs:\/\//, '')
-    storage = getStorage(getFirebaseApp(), `gs://${bucket}`)
-  }
-  return storage
+async function resolveAuthUser(): Promise<User | null> {
+  const firebaseAuth = getFirebaseAuth()
+
+  await withTimeout(
+    firebaseAuth.authStateReady(),
+    AUTH_TIMEOUT_MS,
+    'Firebase Auth demorou demais. Verifique sua conexão.',
+  )
+
+  if (firebaseAuth.currentUser) return firebaseAuth.currentUser
+
+  const cred = await withTimeout(
+    signInAnonymously(firebaseAuth),
+    AUTH_TIMEOUT_MS,
+    'Não foi possível autenticar. Ative login anônimo no Firebase.',
+  )
+
+  return cred.user
+}
+
+function startAuth(): Promise<User | null> {
+  if (inflightAuth) return inflightAuth
+
+  inflightAuth = resolveAuthUser()
+    .then((user) => {
+      cachedUser = user
+      authAttempted = true
+      return user
+    })
+    .catch((err) => {
+      authAttempted = true
+      cachedUser = null
+      console.error('[firebase] auth failed', err)
+      return null
+    })
+    .finally(() => {
+      inflightAuth = null
+    })
+
+  return inflightAuth
 }
 
 export async function ensureFirebaseUser(): Promise<User> {
   const firebaseAuth = getFirebaseAuth()
   if (firebaseAuth.currentUser) return firebaseAuth.currentUser
-  const user = await initFirebase()
-  if (!user) throw new Error('Não foi possível autenticar no Firebase')
+
+  const user = await resolveAuthUser()
+  if (!user) {
+    throw new Error('Não foi possível autenticar no Firebase')
+  }
+
+  cachedUser = user
+  authAttempted = true
   return user
 }
 
 export function initFirebase(): Promise<User | null> {
   if (!isFirebaseConfigured()) return Promise.resolve(null)
-  if (!initPromise) {
-    initPromise = new Promise((resolve, reject) => {
-      const firebaseAuth = getFirebaseAuth()
-      const unsub = onAuthStateChanged(
-        firebaseAuth,
-        async (user) => {
-          if (user) {
-            unsub()
-            resolve(user)
-            return
-          }
-          try {
-            const cred = await signInAnonymously(firebaseAuth)
-            unsub()
-            resolve(cred.user)
-          } catch (err) {
-            unsub()
-            reject(err)
-          }
-        },
-        (err) => {
-          unsub()
-          reject(err)
-        },
-      )
-    })
-  }
-  return initPromise
+  if (cachedUser) return Promise.resolve(cachedUser)
+  if (authAttempted && !cachedUser) return Promise.resolve(null)
+  return startAuth()
 }

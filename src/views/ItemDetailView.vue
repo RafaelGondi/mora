@@ -2,12 +2,11 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useBacklogStore } from '@/stores/backlog'
-import { isFirebaseStorageConfigured } from '@/lib/firebase'
+import { prepareLocalCoverUrl } from '@/services/localCover'
 import { fetchCoverOptions } from '@/services/coverSuggestions'
-import { uploadCoverImage } from '@/services/storage/coverUpload'
 import CoverImage from '@/components/media/CoverImage.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
-import { STATUS_OPTIONS, TYPE_LABELS } from '@/types/media'
+import { STATUS_OPTIONS, TYPE_LABELS, CREATOR_LABELS, itemCreator, supportsWhereToWatch } from '@/types/media'
 import type { BacklogStatus } from '@/types/media'
 
 const route = useRoute()
@@ -37,6 +36,21 @@ function updateNotes(e: Event) {
   if (item.value) store.updateNotes(item.value.id, (e.target as HTMLTextAreaElement).value)
 }
 
+function updateCreator(e: Event) {
+  if (item.value) store.updateCreator(item.value.id, (e.target as HTMLInputElement).value)
+}
+
+function updateWhereToWatch(e: Event) {
+  if (item.value) store.updateWhereToWatch(item.value.id, (e.target as HTMLInputElement).value)
+}
+
+function filterByCreator() {
+  if (!item.value) return
+  const name = itemCreator(item.value)
+  if (!name) return
+  router.push({ path: '/backlog', query: { creator: name } })
+}
+
 function setRating(value: number) {
   if (!item.value) return
   const next = item.value.userRating === value ? undefined : value
@@ -48,10 +62,12 @@ const coverDraft = ref('')
 const editingCover = ref(false)
 const coverOptions = ref<string[]>([])
 const coversLoading = ref(false)
-const coverUploading = ref(false)
+const coverProcessing = ref(false)
 const coverError = ref<string | null>(null)
 
-const canUploadCover = computed(() => isFirebaseStorageConfigured())
+const showWhereToWatch = computed(() => item.value && supportsWhereToWatch(item.value.type))
+const creatorLabel = computed(() => (item.value ? CREATOR_LABELS[item.value.type] : ''))
+const displayCreator = computed(() => (item.value ? itemCreator(item.value) : undefined))
 
 watch(
   () => item.value?.id,
@@ -60,7 +76,6 @@ watch(
     coverDraft.value = item.value?.coverUrl ?? ''
     coverOptions.value = []
     coverError.value = null
-    coverUploading.value = false
   },
 )
 
@@ -111,7 +126,7 @@ async function loadCoverSuggestions() {
       item.value.type,
       item.value.externalId,
       item.value.title,
-      item.value.subtitle,
+      itemCreator(item.value),
     )
     coverOptions.value = options
     if (options.length === 0) {
@@ -128,18 +143,27 @@ async function loadCoverSuggestions() {
 async function onGalleryPick(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
+  input.value = ''
+
   if (!file || !item.value) return
 
-  coverUploading.value = true
+  coverProcessing.value = true
   coverError.value = null
+
+  const safetyTimer = window.setTimeout(() => {
+    if (!coverProcessing.value) return
+    coverProcessing.value = false
+    coverError.value = 'Processamento travou. Tente outra foto ou use Sugerir capas.'
+  }, 20_000)
+
   try {
-    const url = await uploadCoverImage(item.value.id, file)
+    const url = await prepareLocalCoverUrl(file)
     coverDraft.value = url
   } catch (err) {
-    coverError.value = err instanceof Error ? err.message : 'Erro ao enviar imagem'
+    coverError.value = err instanceof Error ? err.message : 'Erro ao processar imagem'
   } finally {
-    coverUploading.value = false
-    input.value = ''
+    window.clearTimeout(safetyTimer)
+    coverProcessing.value = false
   }
 }
 
@@ -163,6 +187,14 @@ function remove() {
     router.push('/backlog')
   }
 }
+
+const itemIndex = computed(() => (item.value ? store.itemPosition(item.value.id) : -1))
+const typeTotal = computed(() => (item.value ? store.byType[item.value.type] : 0))
+const canMoveUp = computed(() => itemIndex.value > 0)
+const canMoveDown = computed(
+  () => itemIndex.value >= 0 && itemIndex.value < typeTotal.value - 1,
+)
+const isFirst = computed(() => itemIndex.value === 0)
 </script>
 
 <template>
@@ -182,9 +214,10 @@ function remove() {
       <div class="detail__info">
         <span class="detail__type" :style="{ color: typeColor }">{{ TYPE_LABELS[item.type] }}</span>
         <h1>{{ item.title }}</h1>
-        <p v-if="item.subtitle || item.year" class="detail__meta">
-          {{ [item.subtitle, item.year].filter(Boolean).join(' · ') }}
+        <p v-if="displayCreator || item.year" class="detail__meta">
+          {{ [displayCreator, item.year].filter(Boolean).join(' · ') }}
         </p>
+        <p v-if="item.whereToWatch" class="detail__watch">{{ item.whereToWatch }}</p>
         <StatusBadge :status="item.status" />
         <button
           v-if="!editingCover"
@@ -200,20 +233,20 @@ function remove() {
     <Transition name="cover-panel">
       <div v-if="editingCover" class="detail__cover-panel reveal">
         <p class="detail__cover-tip">
-          No celular, use <strong>Galeria</strong> ou <strong>Sugerir capas</strong>.
+          Use <strong>Galeria</strong> (fica neste aparelho, sem custo) ou <strong>Sugerir capas</strong>.
           No computador, também pode colar uma URL.
         </p>
 
         <div class="detail__cover-tools">
-          <label v-if="canUploadCover" class="detail__cover-tool tap-scale">
+          <label class="detail__cover-tool tap-scale">
             <input
               class="detail__cover-file"
               type="file"
               accept="image/*"
-              :disabled="coverUploading"
+              :disabled="coverProcessing"
               @change="onGalleryPick"
             />
-            {{ coverUploading ? 'Enviando…' : 'Galeria' }}
+            {{ coverProcessing ? 'Processando…' : 'Galeria' }}
           </label>
           <button
             class="detail__cover-tool tap-scale"
@@ -282,6 +315,35 @@ function remove() {
     </section>
 
     <section class="detail__section reveal reveal-d2">
+      <h2>{{ creatorLabel }}</h2>
+      <input
+        class="detail__input"
+        :value="item.creator ?? ''"
+        :placeholder="creatorLabel"
+        @change="updateCreator"
+      />
+      <button
+        v-if="displayCreator"
+        class="detail__creator-link tap-scale"
+        type="button"
+        @click="filterByCreator"
+      >
+        Ver tudo de {{ displayCreator }}
+      </button>
+    </section>
+
+    <section v-if="showWhereToWatch" class="detail__section reveal reveal-d2">
+      <h2>Onde assistir</h2>
+      <p class="detail__hint">Streaming, cinema, plataforma ou onde você salvou pra ver.</p>
+      <input
+        class="detail__input"
+        :value="item.whereToWatch ?? ''"
+        placeholder="Netflix, Prime, HBO Max, cinema…"
+        @change="updateWhereToWatch"
+      />
+    </section>
+
+    <section class="detail__section reveal reveal-d3">
       <h2>Minha nota</h2>
       <p class="detail__hint">Toque para avaliar. Toque de novo na mesma estrela para limpar.</p>
       <div class="detail__rating" role="group" aria-label="Nota pessoal">
@@ -304,7 +366,7 @@ function remove() {
       </p>
     </section>
 
-    <section class="detail__section reveal reveal-d3">
+    <section class="detail__section reveal reveal-d4">
       <h2>Status</h2>
       <div class="detail__status-grid">
         <button
@@ -320,7 +382,40 @@ function remove() {
       </div>
     </section>
 
-    <section class="detail__section reveal reveal-d4">
+    <section class="detail__section reveal reveal-d5">
+      <h2>Posição na fila</h2>
+      <p v-if="itemIndex >= 0" class="detail__hint">
+        {{ itemIndex + 1 }}º de {{ typeTotal }} na fila de {{ TYPE_LABELS[item.type] }}.
+      </p>
+      <div class="detail__order-actions">
+        <button
+          class="order-btn tap-scale"
+          type="button"
+          :disabled="isFirst"
+          @click="store.moveToTop(item.id)"
+        >
+          Primeiro
+        </button>
+        <button
+          class="order-btn tap-scale"
+          type="button"
+          :disabled="!canMoveUp"
+          @click="store.moveUp(item.id)"
+        >
+          Subir
+        </button>
+        <button
+          class="order-btn tap-scale"
+          type="button"
+          :disabled="!canMoveDown"
+          @click="store.moveDown(item.id)"
+        >
+          Descer
+        </button>
+      </div>
+    </section>
+
+    <section class="detail__section reveal reveal-d6">
       <h2>Notas pessoais</h2>
       <textarea
         class="detail__notes"
@@ -331,7 +426,7 @@ function remove() {
       />
     </section>
 
-    <button class="detail__remove tap-scale reveal reveal-d5" type="button" @click="remove">
+    <button class="detail__remove tap-scale reveal reveal-d7" type="button" @click="remove">
       Remover da fila
     </button>
   </div>
@@ -412,6 +507,21 @@ function remove() {
 .detail__meta {
   font-size: 14px;
   color: var(--text-secondary);
+}
+
+.detail__watch {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.detail__creator-link {
+  margin-top: 8px;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  text-align: left;
 }
 
 .detail__edit-cover {
@@ -655,6 +765,34 @@ function remove() {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+.detail__order-actions {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr;
+  gap: 8px;
+}
+
+.order-btn {
+  padding: 12px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elevated);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: all 0.25s ease;
+}
+
+.order-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.order-btn:not(:disabled):active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .status-btn {

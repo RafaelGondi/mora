@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore'
 import { getFirestoreDb, initFirebase } from '@/lib/firebase'
 import type { BacklogItem } from '@/types/media'
+import { isLocalCover } from '@/utils/coverUrl'
 
 const MIGRATION_KEY = 'mora-backlog-migrated'
 const LEGACY_MIGRATION_KEY = 'ante-backlog-migrated'
@@ -21,7 +22,11 @@ function backlogCollection(uid: string) {
 function toFirestore(item: BacklogItem): Record<string, unknown> {
   const data: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(item)) {
-    if (value !== undefined) data[key] = value
+    if (value === undefined) continue
+    if (key === 'coverUrl' && isLocalCover(typeof value === 'string' ? value : undefined)) {
+      continue
+    }
+    data[key] = value
   }
   return data
 }
@@ -75,7 +80,6 @@ export async function subscribeBacklog(
     (snapshot) => {
       const items = snapshot.docs
         .map((d) => fromFirestore(d.data() as BacklogItem))
-        .sort((a, b) => b.addedAt.localeCompare(a.addedAt))
       onChange(items)
     },
     (err) => onError?.(err),

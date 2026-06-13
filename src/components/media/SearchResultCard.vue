@@ -49,7 +49,7 @@ function handleAdd() {
       <h3 class="result__title">{{ result.title }}</h3>
       <p class="result__meta">
         <span v-if="result.year">{{ result.year }}</span>
-        <span v-if="result.subtitle"> · {{ result.subtitle }}</span>
+        <span v-if="result.creator || result.subtitle"> · {{ result.creator ?? result.subtitle }}</span>
         <span v-if="result.rating"> · ★ {{ result.rating.toFixed(1) }}</span>
       </p>
       <p v-if="result.overview" class="result__overview">{{ result.overview }}</p>

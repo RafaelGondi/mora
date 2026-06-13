@@ -47,7 +47,7 @@ export async function fetchCoverOptions(
   type: MediaType,
   externalId: string,
   title: string,
-  subtitle?: string,
+  creator?: string,
 ): Promise<string[]> {
   const urls = new Set<string>()
 
@@ -75,7 +75,7 @@ export async function fetchCoverOptions(
   collect(urls, await searchFallbackByType(type, title))
 
   if (urls.size < 6) {
-    collect(urls, await searchCommonsImages(COMMONS_QUERY[type](title, subtitle), 10))
+    collect(urls, await searchCommonsImages(COMMONS_QUERY[type](title, creator), 10))
   }
 
   if (urls.size < 4) {
