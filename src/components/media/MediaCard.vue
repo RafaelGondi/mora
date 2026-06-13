@@ -111,7 +111,6 @@ function openDetail() {
 
 .card--row.card--reorderable {
   cursor: grab;
-  touch-action: manipulation;
   -webkit-user-select: none;
   user-select: none;
 }

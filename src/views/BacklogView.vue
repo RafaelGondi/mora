@@ -10,7 +10,7 @@ import { haptic } from '@/utils/haptic'
 import { MEDIA_TYPES, STATUS_OPTIONS, TYPE_LABELS } from '@/types/media'
 import type { BacklogStatus, BacklogItem, MediaType } from '@/types/media'
 
-type DragEndEvent = {
+type DragIndexEvent = {
   oldIndex?: number
   newIndex?: number
 }
@@ -63,19 +63,19 @@ const isDragging = ref(false)
 const pressingId = ref<string | null>(null)
 const settledId = ref<string | null>(null)
 
-let pressTimer: ReturnType<typeof setTimeout> | undefined
 let settleTimer: ReturnType<typeof setTimeout> | undefined
 
 const dragOptions = {
-  animation: 380,
+  animation: 260,
   easing: 'cubic-bezier(0.34, 1.2, 0.64, 1)',
-  delayOnTouchOnly: true,
-  delay: 180,
-  touchStartThreshold: 6,
+  delay: 0,
+  delayOnTouchOnly: false,
+  distance: 6,
+  touchStartThreshold: 0,
   ghostClass: 'backlog__ghost',
   chosenClass: 'backlog__chosen',
   dragClass: 'backlog__drag',
-  fallbackTolerance: 4,
+  emptyInsertThreshold: 8,
 }
 
 watch(
@@ -88,23 +88,19 @@ watch(
 
 function clearPressState() {
   pressingId.value = null
-  if (pressTimer) {
-    clearTimeout(pressTimer)
-    pressTimer = undefined
+}
+
+function onChoose(evt: DragIndexEvent) {
+  if (isDragging.value) return
+  const item = dragList.value[evt.oldIndex ?? -1]
+  if (item) {
+    pressingId.value = item.id
+    haptic('press')
   }
 }
 
-function onItemPressStart(id: string) {
-  if (isDragging.value) return
-  pressingId.value = id
-  if (pressTimer) clearTimeout(pressTimer)
-  pressTimer = setTimeout(() => {
-    if (pressingId.value === id) haptic('press')
-  }, dragOptions.delay)
-}
-
-function onItemPressEnd() {
-  clearPressState()
+function onUnchoose() {
+  if (!isDragging.value) clearPressState()
 }
 
 function onDragStart() {
@@ -122,7 +118,7 @@ function onReorder() {
   )
 }
 
-function onDragEnd(evt: DragEndEvent) {
+function onDragEnd(evt: DragIndexEvent) {
   onReorder()
 
   const moved = evt.oldIndex !== undefined && evt.newIndex !== undefined && evt.oldIndex !== evt.newIndex
@@ -311,51 +307,47 @@ function clearCreator() {
 
     <p v-if="filtered.length && canReorder" class="backlog__drag-hint reveal reveal-d3">
       <span class="backlog__drag-hint-icon" aria-hidden="true">↕</span>
-      Pressione e arraste para reorganizar
+      Arraste para reorganizar — toque rápido abre o item.
     </p>
 
-    <Transition name="page-fade" mode="out-in">
-      <draggable
-        v-if="filtered.length && canReorder"
-        :key="filterType"
-        v-model="dragList"
-        item-key="id"
-        v-bind="dragOptions"
-        class="backlog__list backlog__list--reorder"
-        :class="{ 'backlog__list--dragging': isDragging }"
-        @start="onDragStart"
-        @end="onDragEnd"
-      >
-        <template #item="{ element }">
-          <div
-            class="backlog__item"
-            :class="{
-              'backlog__item--pressing': pressingId === element.id,
-              'backlog__item--settled': settledId === element.id,
-            }"
-            @pointerdown="onItemPressStart(element.id)"
-            @pointerup="onItemPressEnd"
-            @pointercancel="onItemPressEnd"
-            @pointerleave="onItemPressEnd"
-          >
-            <MediaCard
-              :item="element"
-              variant="row"
-              reorderable
-              :drag-active="isDragging"
-              :suppress-click="suppressCardClick"
-            />
-          </div>
-        </template>
-      </draggable>
+    <draggable
+      v-if="filtered.length && canReorder"
+      :key="filterType"
+      v-model="dragList"
+      item-key="id"
+      v-bind="dragOptions"
+      class="backlog__list backlog__list--reorder"
+      :class="{ 'backlog__list--dragging': isDragging }"
+      @choose="onChoose"
+      @unchoose="onUnchoose"
+      @start="onDragStart"
+      @end="onDragEnd"
+    >
+      <template #item="{ element }">
+        <div
+          class="backlog__item"
+          :class="{
+            'backlog__item--pressing': pressingId === element.id,
+            'backlog__item--settled': settledId === element.id,
+          }"
+        >
+          <MediaCard
+            :item="element"
+            variant="row"
+            reorderable
+            :drag-active="isDragging"
+            :suppress-click="suppressCardClick"
+          />
+        </div>
+      </template>
+    </draggable>
 
-      <div v-else-if="filtered.length" :key="`static-${filterType}`" class="backlog__list">
-        <p v-if="!canReorder" class="backlog__drag-hint">
-          Limpe os filtros para reorganizar a fila.
-        </p>
-        <MediaCard v-for="item in filtered" :key="item.id" :item="item" variant="row" />
-      </div>
-    </Transition>
+    <div v-else-if="filtered.length" :key="`static-${filterType}`" class="backlog__list">
+      <p v-if="!canReorder" class="backlog__drag-hint">
+        Limpe os filtros para reorganizar a fila.
+      </p>
+      <MediaCard v-for="item in filtered" :key="item.id" :item="item" variant="row" />
+    </div>
 
   </div>
 
@@ -697,15 +689,24 @@ function clearCreator() {
 }
 
 .backlog__list--reorder > .backlog__item {
-  transition: transform 0.38s var(--ease-spring);
+  touch-action: none;
 }
 
-.backlog__list--dragging > .backlog__item:not(.backlog__ghost) {
-  transition: transform 0.38s var(--ease-spring), opacity 0.28s var(--ease-smooth);
+.backlog__list--reorder:not(.backlog__list--dragging) > .backlog__item {
+  transition: transform 0.32s var(--ease-spring);
 }
 
-.backlog__list--dragging > .backlog__item:not(.backlog__ghost):not(.backlog__chosen):not(.backlog__drag) {
-  opacity: 0.72;
+.backlog__list--dragging > .backlog__item {
+  transition: none !important;
+}
+
+.backlog__list--dragging > .backlog__item:not(.backlog__ghost):not(.backlog__drag) {
+  opacity: 0.55;
+}
+
+.backlog__list--dragging > .backlog__item.backlog__chosen:not(.backlog__ghost):not(.backlog__drag) {
+  opacity: 0 !important;
+  pointer-events: none;
 }
 
 .backlog__item--pressing :deep(.card--row) {
@@ -754,24 +755,19 @@ function clearCreator() {
   opacity: 1 !important;
 }
 
-.backlog__list :deep(.backlog__chosen .card--row) {
-  transform: scale(1.02);
-  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
-  box-shadow: 0 10px 28px color-mix(in srgb, var(--accent) 18%, transparent);
-  transition:
-    transform 0.22s var(--ease-spring),
-    box-shadow 0.22s var(--ease-smooth),
-    border-color 0.22s var(--ease-smooth);
+.backlog__list :deep(.backlog__drag) {
+  z-index: 20;
 }
 
 .backlog__list :deep(.backlog__drag .card--row) {
-  transform: scale(1.045) rotate(-0.6deg);
+  transform: scale(1.03);
   border-color: var(--accent);
   box-shadow:
-    0 22px 48px rgba(0, 0, 0, 0.16),
+    0 16px 36px rgba(0, 0, 0, 0.16),
     0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
-  opacity: 0.96;
+  opacity: 0.98;
   transition: none;
+  cursor: grabbing;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -780,10 +776,8 @@ function clearCreator() {
     animation: none !important;
   }
 
-  .backlog__list--reorder > .backlog__item,
-  .backlog__list--dragging > .backlog__item:not(.backlog__ghost),
-  .backlog__item--pressing :deep(.card--row),
-  .backlog__list :deep(.backlog__chosen .card--row) {
+  .backlog__list--reorder:not(.backlog__list--dragging) > .backlog__item,
+  .backlog__item--pressing :deep(.card--row) {
     transition: none !important;
   }
 

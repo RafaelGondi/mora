@@ -158,4 +158,25 @@ const showIndicator = computed(() => activeIndex.value >= 0)
     transition: none;
   }
 }
+
+@media (hover: none) and (pointer: coarse) {
+  .nav {
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      color-mix(in srgb, var(--bg) 88%, transparent) 28%,
+      var(--bg) 62%
+    );
+  }
+
+  .nav__inner {
+    background: var(--bg-elevated);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-color: var(--border-strong);
+    box-shadow:
+      var(--shadow-nav),
+      0 4px 24px color-mix(in srgb, var(--text) 8%, transparent);
+  }
+}
 </style>
