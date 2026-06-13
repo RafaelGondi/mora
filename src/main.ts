@@ -1,0 +1,21 @@
+import './assets/main.css'
+import './assets/motion.css'
+
+import { createApp } from 'vue'
+import { createPinia } from 'pinia'
+
+import App from './App.vue'
+import router from './router'
+import { useThemeStore } from './stores/theme'
+import { useBacklogStore } from './stores/backlog'
+
+const app = createApp(App)
+const pinia = createPinia()
+
+app.use(pinia)
+app.use(router)
+
+useThemeStore(pinia)
+void useBacklogStore(pinia).initSync()
+
+app.mount('#app')

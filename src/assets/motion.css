@@ -1,0 +1,226 @@
+/* Easing curves */
+:root {
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Ambient background */
+.ambient {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.ambient__orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.45;
+  animation: ambient-drift 18s ease-in-out infinite;
+}
+
+.ambient__orb--1 {
+  width: 280px;
+  height: 280px;
+  background: rgba(91, 76, 219, 0.18);
+  top: -80px;
+  right: -60px;
+}
+
+.ambient__orb--2 {
+  width: 220px;
+  height: 220px;
+  background: rgba(212, 93, 140, 0.12);
+  bottom: 120px;
+  left: -80px;
+  animation-delay: -6s;
+  animation-duration: 22s;
+}
+
+.ambient__orb--3 {
+  width: 160px;
+  height: 160px;
+  background: rgba(61, 158, 130, 0.1);
+  top: 40%;
+  right: 10%;
+  animation-delay: -12s;
+  animation-duration: 16s;
+}
+
+[data-theme='dark'] .ambient__orb--1 {
+  background: rgba(123, 110, 246, 0.22);
+  opacity: 0.35;
+}
+
+[data-theme='dark'] .ambient__orb--2 {
+  background: rgba(232, 122, 168, 0.14);
+  opacity: 0.3;
+}
+
+[data-theme='dark'] .ambient__orb--3 {
+  background: rgba(79, 191, 154, 0.12);
+  opacity: 0.28;
+}
+
+@keyframes ambient-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(12px, -18px) scale(1.05); }
+  66% { transform: translate(-10px, 14px) scale(0.95); }
+}
+
+/* Page transitions */
+.page-slide-left-enter-active,
+.page-slide-left-leave-active,
+.page-slide-right-enter-active,
+.page-slide-right-leave-active,
+.page-fade-enter-active,
+.page-fade-leave-active {
+  transition:
+    opacity 0.28s var(--ease-out-expo),
+    transform 0.32s var(--ease-out-expo);
+}
+
+.page-slide-left-enter-from {
+  opacity: 0;
+  transform: translateX(28px);
+}
+
+.page-slide-left-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+.page-slide-right-enter-from {
+  opacity: 0;
+  transform: translateX(-28px);
+}
+
+.page-slide-right-leave-to {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.page-fade-enter-from,
+.page-fade-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+/* Staggered reveal */
+.reveal {
+  animation: reveal-up 0.55s var(--ease-out-expo) both;
+}
+
+.reveal-d1 { animation-delay: 0.06s; }
+.reveal-d2 { animation-delay: 0.12s; }
+.reveal-d3 { animation-delay: 0.18s; }
+.reveal-d4 { animation-delay: 0.24s; }
+.reveal-d5 { animation-delay: 0.3s; }
+.reveal-d6 { animation-delay: 0.36s; }
+
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* List stagger */
+.list-enter-active {
+  transition:
+    opacity 0.35s var(--ease-out-expo),
+    transform 0.4s var(--ease-spring);
+}
+
+.list-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.25s ease;
+  position: absolute;
+  width: calc(100% - 40px);
+}
+
+.list-enter-from {
+  opacity: 0;
+  transform: translateY(12px) scale(0.97);
+}
+
+.list-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.list-move {
+  transition: transform 0.4s var(--ease-out-expo);
+}
+
+/* Tap feedback */
+.tap-scale {
+  transition: transform 0.18s var(--ease-spring);
+}
+
+.tap-scale:active {
+  transform: scale(0.96);
+}
+
+/* Toast bounce */
+.toast-pop-enter-active {
+  animation: toast-in 0.45s var(--ease-spring);
+}
+
+.toast-pop-leave-active {
+  animation: toast-out 0.3s var(--ease-smooth) forwards;
+}
+
+@keyframes toast-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px) scale(0.85);
+  }
+  60% {
+    transform: translateX(-50%) translateY(-4px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px) scale(0.9);
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .ambient__orb,
+  .reveal,
+  .page-slide-left-enter-active,
+  .page-slide-left-leave-active,
+  .page-slide-right-enter-active,
+  .page-slide-right-leave-active,
+  .page-fade-enter-active,
+  .page-fade-leave-active,
+  .list-enter-active,
+  .list-leave-active,
+  .list-move,
+  .toast-pop-enter-active,
+  .toast-pop-leave-active {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
