@@ -2,6 +2,9 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useBacklogStore } from '@/stores/backlog'
+import { isFirebaseStorageConfigured } from '@/lib/firebase'
+import { fetchBookCoverOptions } from '@/services/api/openLibrary'
+import { uploadCoverImage } from '@/services/storage/coverUpload'
 import CoverImage from '@/components/media/CoverImage.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { STATUS_OPTIONS, TYPE_LABELS } from '@/types/media'
@@ -43,12 +46,21 @@ function setRating(value: number) {
 const stars = [1, 2, 3, 4, 5]
 const coverDraft = ref('')
 const editingCover = ref(false)
+const coverOptions = ref<string[]>([])
+const coversLoading = ref(false)
+const coverUploading = ref(false)
+const coverError = ref<string | null>(null)
+
+const canUploadCover = computed(() => isFirebaseStorageConfigured())
+const canSuggestCovers = computed(() => item.value?.type === 'book')
 
 watch(
   () => item.value?.id,
   () => {
     editingCover.value = false
     coverDraft.value = item.value?.coverUrl ?? ''
+    coverOptions.value = []
+    coverError.value = null
   },
 )
 
@@ -73,12 +85,57 @@ const coverChanged = computed(() => {
 
 function openCoverEditor() {
   coverDraft.value = item.value?.coverUrl ?? ''
+  coverOptions.value = []
+  coverError.value = null
   editingCover.value = true
 }
 
 function cancelCoverEdit() {
   coverDraft.value = item.value?.coverUrl ?? ''
+  coverOptions.value = []
+  coverError.value = null
   editingCover.value = false
+}
+
+function pickCoverUrl(url: string) {
+  coverDraft.value = url
+  coverError.value = null
+}
+
+async function loadCoverSuggestions() {
+  if (!item.value) return
+  coversLoading.value = true
+  coverError.value = null
+  try {
+    const options = await fetchBookCoverOptions(item.value.externalId, item.value.title)
+    coverOptions.value = options
+    if (options.length === 0) {
+      coverError.value = 'Nenhuma capa alternativa encontrada.'
+    }
+  } catch {
+    coverError.value = 'Erro ao buscar capas. Tente de novo.'
+    coverOptions.value = []
+  } finally {
+    coversLoading.value = false
+  }
+}
+
+async function onGalleryPick(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file || !item.value) return
+
+  coverUploading.value = true
+  coverError.value = null
+  try {
+    const url = await uploadCoverImage(item.value.id, file)
+    coverDraft.value = url
+  } catch (err) {
+    coverError.value = err instanceof Error ? err.message : 'Erro ao enviar imagem'
+  } finally {
+    coverUploading.value = false
+    input.value = ''
+  }
 }
 
 function saveCover() {
@@ -137,6 +194,47 @@ function remove() {
 
     <Transition name="cover-panel">
       <div v-if="editingCover" class="detail__cover-panel reveal">
+        <p class="detail__cover-tip">
+          No celular, use <strong>Galeria</strong> ou <strong>Sugerir capas</strong>.
+          No computador, também pode colar uma URL.
+        </p>
+
+        <div class="detail__cover-tools">
+          <label v-if="canUploadCover" class="detail__cover-tool tap-scale">
+            <input
+              class="detail__cover-file"
+              type="file"
+              accept="image/*"
+              :disabled="coverUploading"
+              @change="onGalleryPick"
+            />
+            {{ coverUploading ? 'Enviando…' : 'Galeria' }}
+          </label>
+          <button
+            v-if="canSuggestCovers"
+            class="detail__cover-tool tap-scale"
+            type="button"
+            :disabled="coversLoading"
+            @click="loadCoverSuggestions"
+          >
+            {{ coversLoading ? 'Buscando…' : 'Sugerir capas' }}
+          </button>
+        </div>
+
+        <div v-if="coverOptions.length" class="detail__cover-grid">
+          <button
+            v-for="url in coverOptions"
+            :key="url"
+            class="detail__cover-option tap-scale"
+            :class="{ 'detail__cover-option--on': coverDraft === url }"
+            type="button"
+            :aria-label="'Usar esta capa'"
+            @click="pickCoverUrl(url)"
+          >
+            <img :src="url" alt="" loading="lazy" />
+          </button>
+        </div>
+
         <label class="detail__field">
           <span>URL da capa</span>
           <input
@@ -147,7 +245,9 @@ function remove() {
             @keydown.enter.prevent="saveCover"
           />
         </label>
-        <p class="detail__cover-tip">A prévia atualiza na capa acima.</p>
+
+        <p v-if="coverError" class="detail__cover-error">{{ coverError }}</p>
+
         <div class="detail__cover-actions">
           <button
             class="detail__cover-save tap-scale"
@@ -332,9 +432,71 @@ function remove() {
 }
 
 .detail__cover-tip {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.detail__cover-tip strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.detail__cover-tools {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.detail__cover-tool {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.detail__cover-tool:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.detail__cover-file {
+  display: none;
+}
+
+.detail__cover-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.detail__cover-option {
+  aspect-ratio: 2/3;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  background: var(--bg-soft);
+}
+
+.detail__cover-option--on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.detail__cover-option img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.detail__cover-error {
   font-size: 12px;
-  color: var(--text-tertiary);
-  margin: -2px 0 0;
+  color: #d64545;
+  margin: 0;
 }
 
 .cover-panel-enter-active,

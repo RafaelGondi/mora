@@ -12,6 +12,7 @@ import {
   persistentMultipleTabManager,
   type Firestore,
 } from 'firebase/firestore'
+import { getStorage, type FirebaseStorage } from 'firebase/storage'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -31,9 +32,14 @@ export function isFirebaseConfigured(): boolean {
   )
 }
 
+export function isFirebaseStorageConfigured(): boolean {
+  return isFirebaseConfigured() && Boolean(firebaseConfig.storageBucket)
+}
+
 let app: FirebaseApp | null = null
 let auth: Auth | null = null
 let db: Firestore | null = null
+let storage: FirebaseStorage | null = null
 let initPromise: Promise<User | null> | null = null
 
 export function getFirebaseApp(): FirebaseApp {
@@ -56,6 +62,14 @@ export function getFirestoreDb(): Firestore {
     })
   }
   return db
+}
+
+export function getFirebaseStorage(): FirebaseStorage {
+  if (!isFirebaseStorageConfigured()) {
+    throw new Error('Firebase Storage não configurado. Defina VITE_FIREBASE_STORAGE_BUCKET no .env')
+  }
+  if (!storage) storage = getStorage(getFirebaseApp())
+  return storage
 }
 
 export function initFirebase(): Promise<User | null> {
