@@ -69,6 +69,26 @@ function toBacklogItem(
   }
 }
 
+function mergeItems(remote: BacklogItem[], local: BacklogItem[]): BacklogItem[] {
+  const byId = new Map<string, BacklogItem>()
+
+  for (const item of remote) byId.set(item.id, item)
+
+  for (const item of local) {
+    const remoteItem = byId.get(item.id)
+    if (!remoteItem || item.updatedAt > remoteItem.updatedAt) {
+      byId.set(item.id, item)
+    }
+  }
+
+  return [...byId.values()].sort((a, b) => b.addedAt.localeCompare(a.addedAt))
+}
+
+function localOnlyItems(remote: BacklogItem[], merged: BacklogItem[]) {
+  const remoteIds = new Set(remote.map((item) => item.id))
+  return merged.filter((item) => !remoteIds.has(item.id))
+}
+
 export const useBacklogStore = defineStore('backlog', () => {
   const items = ref<BacklogItem[]>(loadItems())
   const syncStatus = ref<SyncStatus>(isFirebaseConfigured() ? 'connecting' : 'local')
@@ -78,12 +98,49 @@ export const useBacklogStore = defineStore('backlog', () => {
   let unsubscribe: (() => void) | null = null
   let applyingRemote = false
   let firebaseUserId: string | null = null
+  const pendingItems = new Map<string, BacklogItem>()
+
+  async function flushPendingItems() {
+    if (!firebaseUserId || pendingItems.size === 0) return
+    for (const item of pendingItems.values()) {
+      try {
+        await upsertBacklogItem(firebaseUserId, item)
+        pendingItems.delete(item.id)
+        syncStatus.value = 'synced'
+        syncError.value = null
+      } catch (err) {
+        syncStatus.value = 'error'
+        syncError.value = err instanceof Error ? err.message : 'Erro ao salvar na nuvem'
+      }
+    }
+  }
+
+  async function syncLocalOnlyItems(remote: BacklogItem[], merged: BacklogItem[]) {
+    if (!firebaseUserId || applyingRemote) return
+    for (const item of localOnlyItems(remote, merged)) {
+      try {
+        await upsertBacklogItem(firebaseUserId, item)
+        syncStatus.value = 'synced'
+        syncError.value = null
+      } catch (err) {
+        syncStatus.value = 'error'
+        syncError.value = err instanceof Error ? err.message : 'Erro ao salvar na nuvem'
+      }
+    }
+  }
 
   async function persistItem(item: BacklogItem) {
     cacheItems(items.value)
-    if (!isFirebaseConfigured() || applyingRemote || !firebaseUserId) return
+    if (!isFirebaseConfigured() || applyingRemote) return
+
+    if (!firebaseUserId) {
+      pendingItems.set(item.id, item)
+      return
+    }
+
     try {
       await upsertBacklogItem(firebaseUserId, item)
+      pendingItems.delete(item.id)
       syncStatus.value = 'synced'
       syncError.value = null
     } catch (err) {
@@ -130,17 +187,21 @@ export const useBacklogStore = defineStore('backlog', () => {
         items.value,
         (remoteItems) => {
           applyingRemote = true
-          items.value = remoteItems
-          cacheItems(remoteItems)
+          const merged = mergeItems(remoteItems, items.value)
+          items.value = merged
+          cacheItems(merged)
           applyingRemote = false
           syncStatus.value = 'synced'
           syncError.value = null
+          void syncLocalOnlyItems(remoteItems, merged)
         },
         (err) => {
           syncStatus.value = 'error'
           syncError.value = err.message
         },
       )
+
+      await flushPendingItems()
     } catch (err) {
       syncStatus.value = 'error'
       syncError.value = err instanceof Error ? err.message : 'Erro ao conectar com Firebase'
@@ -237,6 +298,15 @@ export const useBacklogStore = defineStore('backlog', () => {
     }
   }
 
+  function updateUserRating(id: string, userRating: number | undefined) {
+    const item = items.value.find((i) => i.id === id)
+    if (item) {
+      item.userRating = userRating
+      item.updatedAt = new Date().toISOString()
+      void persistItem(item)
+    }
+  }
+
   function getItem(id: string) {
     return items.value.find((i) => i.id === id)
   }
@@ -269,6 +339,7 @@ export const useBacklogStore = defineStore('backlog', () => {
     removeItem,
     updateStatus,
     updateNotes,
+    updateUserRating,
     getItem,
     filteredItems,
   }

@@ -32,6 +32,7 @@ export interface BacklogItem {
   coverUrl?: string
   status: BacklogStatus
   rating?: number
+  userRating?: number
   notes?: string
   addedAt: string
   updatedAt: string

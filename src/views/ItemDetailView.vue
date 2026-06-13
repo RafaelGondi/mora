@@ -34,6 +34,14 @@ function updateNotes(e: Event) {
   if (item.value) store.updateNotes(item.value.id, (e.target as HTMLTextAreaElement).value)
 }
 
+function setRating(value: number) {
+  if (!item.value) return
+  const next = item.value.userRating === value ? undefined : value
+  store.updateUserRating(item.value.id, next)
+}
+
+const stars = [1, 2, 3, 4, 5]
+
 function remove() {
   if (item.value && confirm('Remover este item da fila?')) {
     store.removeItem(item.value.id)
@@ -72,6 +80,29 @@ function remove() {
     </section>
 
     <section class="detail__section reveal reveal-d2">
+      <h2>Minha nota</h2>
+      <p class="detail__hint">Toque para avaliar. Toque de novo na mesma estrela para limpar.</p>
+      <div class="detail__rating" role="group" aria-label="Nota pessoal">
+        <button
+          v-for="value in stars"
+          :key="value"
+          class="rating-star tap-scale"
+          :class="{ 'rating-star--on': (item.userRating ?? 0) >= value }"
+          type="button"
+          :aria-label="`${value} de 5 estrelas`"
+          :aria-pressed="(item.userRating ?? 0) >= value"
+          @click="setRating(value)"
+        >
+          <span aria-hidden="true">★</span>
+        </button>
+        <span v-if="item.userRating" class="detail__rating-label">{{ item.userRating }}/5</span>
+      </div>
+      <p v-if="item.rating" class="detail__api-rating">
+        Nota da fonte: {{ item.rating.toFixed(1) }}
+      </p>
+    </section>
+
+    <section class="detail__section reveal reveal-d3">
       <h2>Status</h2>
       <div class="detail__status-grid">
         <button
@@ -87,7 +118,7 @@ function remove() {
       </div>
     </section>
 
-    <section class="detail__section reveal reveal-d3">
+    <section class="detail__section reveal reveal-d4">
       <h2>Notas pessoais</h2>
       <textarea
         class="detail__notes"
@@ -98,7 +129,7 @@ function remove() {
       />
     </section>
 
-    <button class="detail__remove tap-scale reveal reveal-d4" type="button" @click="remove">
+    <button class="detail__remove tap-scale reveal reveal-d5" type="button" @click="remove">
       Remover da fila
     </button>
   </div>
@@ -199,6 +230,57 @@ function remove() {
   font-size: 15px;
   line-height: 1.6;
   color: var(--text-secondary);
+}
+
+.detail__hint {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin-bottom: 12px;
+}
+
+.detail__rating {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rating-star {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  font-size: 22px;
+  line-height: 1;
+  color: var(--text-tertiary);
+  transition:
+    color 0.2s ease,
+    transform 0.2s cubic-bezier(0.34, 1.2, 0.64, 1),
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.rating-star--on {
+  color: #e8a317;
+  border-color: rgba(232, 163, 23, 0.35);
+  background: rgba(232, 163, 23, 0.1);
+}
+
+.detail__rating-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-left: 4px;
+}
+
+.detail__api-rating {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-tertiary);
 }
 
 .detail__status-grid {

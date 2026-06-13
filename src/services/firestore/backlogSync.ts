@@ -18,8 +18,12 @@ function backlogCollection(uid: string) {
   return collection(getFirestoreDb(), 'users', uid, 'backlog')
 }
 
-function toFirestore(item: BacklogItem): BacklogItem {
-  return { ...item }
+function toFirestore(item: BacklogItem): Record<string, unknown> {
+  const data: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(item)) {
+    if (value !== undefined) data[key] = value
+  }
+  return data
 }
 
 function fromFirestore(data: BacklogItem): BacklogItem {

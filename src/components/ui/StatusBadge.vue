@@ -17,6 +17,8 @@ const labels = Object.fromEntries(STATUS_OPTIONS.map((s) => [s.value, s.label]))
 <style scoped>
 .badge {
   display: inline-flex;
+  align-self: flex-start;
+  width: fit-content;
   align-items: center;
   padding: 4px 10px;
   border-radius: var(--radius-full);

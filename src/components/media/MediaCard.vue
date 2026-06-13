@@ -55,6 +55,9 @@ function openDetail() {
       <p v-if="item.subtitle || item.year" class="card__meta">
         {{ item.subtitle || item.year }}
       </p>
+      <p v-if="item.userRating" class="card__rating" :aria-label="`Nota ${item.userRating} de 5`">
+        <span aria-hidden="true">★</span> {{ item.userRating }}/5
+      </p>
       <StatusBadge v-if="variant !== 'strip'" :status="item.status" />
     </div>
   </article>
@@ -183,6 +186,17 @@ function openDetail() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.card__rating {
+  font-size: 12px;
+  font-weight: 600;
+  color: #c99212;
+  width: fit-content;
+}
+
+.card__rating span {
+  font-size: 11px;
 }
 
 @media (prefers-reduced-motion: reduce) {
