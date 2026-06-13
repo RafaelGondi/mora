@@ -17,6 +17,22 @@ function stripHtml(html: string) {
   return html.replace(/<[^>]+>/g, '').trim()
 }
 
+export async function fetchSeriesCoverOptions(externalId: string): Promise<string[]> {
+  if (!/^\d+$/.test(externalId)) return []
+
+  try {
+    const res = await fetch(`${BASE}/shows/${externalId}`)
+    if (!res.ok) return []
+    const show = (await res.json()) as TvMazeResult['show']
+    const urls: string[] = []
+    if (show.image?.original) urls.push(show.image.original)
+    if (show.image?.medium) urls.push(show.image.medium)
+    return urls
+  } catch {
+    return []
+  }
+}
+
 export async function searchSeries(query: string) {
   const url = `${BASE}/search/shows?q=${encodeURIComponent(query)}`
   const res = await fetch(url)

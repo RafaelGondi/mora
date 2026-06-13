@@ -68,8 +68,19 @@ export function getFirebaseStorage(): FirebaseStorage {
   if (!isFirebaseStorageConfigured()) {
     throw new Error('Firebase Storage não configurado. Defina VITE_FIREBASE_STORAGE_BUCKET no .env')
   }
-  if (!storage) storage = getStorage(getFirebaseApp())
+  if (!storage) {
+    const bucket = firebaseConfig.storageBucket.replace(/^gs:\/\//, '')
+    storage = getStorage(getFirebaseApp(), `gs://${bucket}`)
+  }
   return storage
+}
+
+export async function ensureFirebaseUser(): Promise<User> {
+  const firebaseAuth = getFirebaseAuth()
+  if (firebaseAuth.currentUser) return firebaseAuth.currentUser
+  const user = await initFirebase()
+  if (!user) throw new Error('Não foi possível autenticar no Firebase')
+  return user
 }
 
 export function initFirebase(): Promise<User | null> {

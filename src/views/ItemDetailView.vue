@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useBacklogStore } from '@/stores/backlog'
 import { isFirebaseStorageConfigured } from '@/lib/firebase'
-import { fetchBookCoverOptions } from '@/services/api/openLibrary'
+import { fetchCoverOptions } from '@/services/coverSuggestions'
 import { uploadCoverImage } from '@/services/storage/coverUpload'
 import CoverImage from '@/components/media/CoverImage.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
@@ -52,7 +52,6 @@ const coverUploading = ref(false)
 const coverError = ref<string | null>(null)
 
 const canUploadCover = computed(() => isFirebaseStorageConfigured())
-const canSuggestCovers = computed(() => item.value?.type === 'book')
 
 watch(
   () => item.value?.id,
@@ -61,6 +60,7 @@ watch(
     coverDraft.value = item.value?.coverUrl ?? ''
     coverOptions.value = []
     coverError.value = null
+    coverUploading.value = false
   },
 )
 
@@ -107,7 +107,12 @@ async function loadCoverSuggestions() {
   coversLoading.value = true
   coverError.value = null
   try {
-    const options = await fetchBookCoverOptions(item.value.externalId, item.value.title)
+    const options = await fetchCoverOptions(
+      item.value.type,
+      item.value.externalId,
+      item.value.title,
+      item.value.subtitle,
+    )
     coverOptions.value = options
     if (options.length === 0) {
       coverError.value = 'Nenhuma capa alternativa encontrada.'
@@ -211,7 +216,6 @@ function remove() {
             {{ coverUploading ? 'Enviando…' : 'Galeria' }}
           </label>
           <button
-            v-if="canSuggestCovers"
             class="detail__cover-tool tap-scale"
             type="button"
             :disabled="coversLoading"

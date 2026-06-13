@@ -18,8 +18,8 @@ interface WbEntity {
   }
 }
 
-function commonsImageUrl(filename: string) {
-  return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(filename)}?width=300`
+function commonsImageUrl(filename: string, width = 300) {
+  return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(filename)}?width=${width}`
 }
 
 function yearFromWikidata(time?: string) {
@@ -44,6 +44,22 @@ function pickLabel(entity: WbEntity) {
 
 function pickDescription(entity: WbEntity) {
   return entity.descriptions?.pt?.value ?? entity.descriptions?.en?.value
+}
+
+export async function fetchWikidataCoverOptions(entityId: string): Promise<string[]> {
+  if (!/^Q\d+$/.test(entityId)) return []
+
+  const entityData = await wikidataFetch<{ entities?: Record<string, WbEntity> }>({
+    action: 'wbgetentities',
+    ids: entityId,
+    props: 'claims',
+  })
+
+  const claims = entityData.entities?.[entityId]?.claims?.P18 ?? []
+  return claims
+    .map((claim) => claim.mainsnak?.datavalue?.value)
+    .filter((value): value is string => typeof value === 'string')
+    .map((filename) => commonsImageUrl(filename, 450))
 }
 
 export async function searchMovies(query: string) {

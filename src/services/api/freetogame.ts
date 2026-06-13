@@ -19,6 +19,18 @@ async function loadGames() {
   return cache
 }
 
+export async function fetchGameCoverOptions(externalId: string): Promise<string[]> {
+  if (!/^\d+$/.test(externalId)) return []
+
+  try {
+    const games = await loadGames()
+    const game = games.find((g) => String(g.id) === externalId)
+    return game?.thumbnail ? [game.thumbnail] : []
+  } catch {
+    return []
+  }
+}
+
 export async function searchGames(query: string) {
   const games = await loadGames()
   const term = query.toLowerCase()

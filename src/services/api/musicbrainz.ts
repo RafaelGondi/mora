@@ -37,6 +37,30 @@ async function resolveCover(releaseGroupId: string): Promise<string | undefined>
   }
 }
 
+function coverFromArchive(images?: CoverArtImage[]): string[] {
+  if (!images?.length) return []
+
+  return images
+    .map((img) => {
+      const url = img.thumbnails?.large ?? img.thumbnails?.['250'] ?? img.thumbnails?.small ?? img.image
+      return url ? toHttps(url) : undefined
+    })
+    .filter((url): url is string => Boolean(url))
+}
+
+export async function fetchAlbumCoverOptions(releaseGroupId: string): Promise<string[]> {
+  if (!releaseGroupId || releaseGroupId.startsWith('manual-')) return []
+
+  try {
+    const res = await fetch(`${COVER_API}/${releaseGroupId}`)
+    if (!res.ok) return []
+    const data = (await res.json()) as { images?: CoverArtImage[] }
+    return coverFromArchive(data.images)
+  } catch {
+    return []
+  }
+}
+
 export async function searchAlbums(query: string) {
   const url = `${BASE}/release-group?query=${encodeURIComponent(query)}&fmt=json&limit=20`
   const res = await fetch(url, {
