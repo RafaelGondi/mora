@@ -68,10 +68,10 @@ let settleTimer: ReturnType<typeof setTimeout> | undefined
 const dragOptions = {
   animation: 260,
   easing: 'cubic-bezier(0.34, 1.2, 0.64, 1)',
-  delay: 0,
-  delayOnTouchOnly: false,
-  distance: 6,
-  touchStartThreshold: 0,
+  delay: 120,
+  delayOnTouchOnly: true,
+  distance: 10,
+  touchStartThreshold: 8,
   ghostClass: 'backlog__ghost',
   chosenClass: 'backlog__chosen',
   dragClass: 'backlog__drag',
@@ -307,7 +307,7 @@ function clearCreator() {
 
     <p v-if="filtered.length && canReorder" class="backlog__drag-hint reveal reveal-d3">
       <span class="backlog__drag-hint-icon" aria-hidden="true">↕</span>
-      Arraste para reorganizar — toque rápido abre o item.
+      Segure um instante e arraste para reorganizar.
     </p>
 
     <draggable
@@ -689,7 +689,7 @@ function clearCreator() {
 }
 
 .backlog__list--reorder > .backlog__item {
-  touch-action: none;
+  touch-action: pan-y;
 }
 
 .backlog__list--reorder:not(.backlog__list--dragging) > .backlog__item {
@@ -697,6 +697,7 @@ function clearCreator() {
 }
 
 .backlog__list--dragging > .backlog__item {
+  touch-action: none;
   transition: none !important;
 }
 
