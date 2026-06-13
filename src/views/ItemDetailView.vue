@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useBacklogStore } from '@/stores/backlog'
 import CoverImage from '@/components/media/CoverImage.vue'
@@ -41,6 +41,59 @@ function setRating(value: number) {
 }
 
 const stars = [1, 2, 3, 4, 5]
+const coverDraft = ref('')
+const editingCover = ref(false)
+
+watch(
+  () => item.value?.id,
+  () => {
+    editingCover.value = false
+    coverDraft.value = item.value?.coverUrl ?? ''
+  },
+)
+
+watch(
+  () => item.value?.coverUrl,
+  (url) => {
+    if (!editingCover.value) coverDraft.value = url ?? ''
+  },
+  { immediate: true },
+)
+
+const heroCover = computed(() => {
+  if (!item.value) return undefined
+  if (editingCover.value) return coverDraft.value.trim() || undefined
+  return item.value.coverUrl
+})
+
+const coverChanged = computed(() => {
+  if (!item.value) return false
+  return coverDraft.value.trim() !== (item.value.coverUrl ?? '')
+})
+
+function openCoverEditor() {
+  coverDraft.value = item.value?.coverUrl ?? ''
+  editingCover.value = true
+}
+
+function cancelCoverEdit() {
+  coverDraft.value = item.value?.coverUrl ?? ''
+  editingCover.value = false
+}
+
+function saveCover() {
+  if (!item.value) return
+  const url = coverDraft.value.trim()
+  store.updateCoverUrl(item.value.id, url || undefined)
+  editingCover.value = false
+}
+
+function removeCover() {
+  if (!item.value) return
+  coverDraft.value = ''
+  store.updateCoverUrl(item.value.id, undefined)
+  editingCover.value = false
+}
 
 function remove() {
   if (item.value && confirm('Remover este item da fila?')) {
@@ -57,7 +110,7 @@ function remove() {
     <div class="detail__hero reveal">
       <div class="detail__cover-wrap">
         <CoverImage
-          :src="item.coverUrl"
+          :src="heroCover"
           :alt="`Capa de ${item.title}`"
           :fallback-letter="item.title.charAt(0)"
           :accent="typeColor"
@@ -71,8 +124,53 @@ function remove() {
           {{ [item.subtitle, item.year].filter(Boolean).join(' · ') }}
         </p>
         <StatusBadge :status="item.status" />
+        <button
+          v-if="!editingCover"
+          class="detail__edit-cover tap-scale"
+          type="button"
+          @click="openCoverEditor"
+        >
+          Editar capa
+        </button>
       </div>
     </div>
+
+    <Transition name="cover-panel">
+      <div v-if="editingCover" class="detail__cover-panel reveal">
+        <label class="detail__field">
+          <span>URL da capa</span>
+          <input
+            v-model="coverDraft"
+            class="detail__input"
+            type="url"
+            placeholder="https://covers.openlibrary.org/b/id/..."
+            @keydown.enter.prevent="saveCover"
+          />
+        </label>
+        <p class="detail__cover-tip">A prévia atualiza na capa acima.</p>
+        <div class="detail__cover-actions">
+          <button
+            class="detail__cover-save tap-scale"
+            type="button"
+            :disabled="!coverChanged"
+            @click="saveCover"
+          >
+            Salvar
+          </button>
+          <button class="detail__cover-cancel tap-scale" type="button" @click="cancelCoverEdit">
+            Cancelar
+          </button>
+          <button
+            v-if="item.coverUrl || coverDraft.trim()"
+            class="detail__cover-remove tap-scale"
+            type="button"
+            @click="removeCover"
+          >
+            Remover
+          </button>
+        </div>
+      </div>
+    </Transition>
 
     <section v-if="item.overview" class="detail__section reveal reveal-d1">
       <h2>Sinopse</h2>
@@ -212,6 +310,46 @@ function remove() {
   color: var(--text-secondary);
 }
 
+.detail__edit-cover {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.detail__cover-panel {
+  margin: -12px 0 20px;
+  padding: 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.detail__cover-tip {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin: -2px 0 0;
+}
+
+.cover-panel-enter-active,
+.cover-panel-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.cover-panel-enter-from,
+.cover-panel-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
 .detail__section {
   margin-bottom: 24px;
 }
@@ -281,6 +419,70 @@ function remove() {
   margin-top: 10px;
   font-size: 12px;
   color: var(--text-tertiary);
+}
+
+.detail__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail__field span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.detail__input {
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.detail__input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.detail__cover-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.detail__cover-save,
+.detail__cover-cancel,
+.detail__cover-remove {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.2s ease, opacity 0.2s ease;
+}
+
+.detail__cover-save {
+  background: var(--accent);
+  color: #fff;
+}
+
+.detail__cover-save:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.detail__cover-cancel,
+.detail__cover-remove {
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
 }
 
 .detail__status-grid {

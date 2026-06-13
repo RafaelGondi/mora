@@ -307,6 +307,15 @@ export const useBacklogStore = defineStore('backlog', () => {
     }
   }
 
+  function updateCoverUrl(id: string, coverUrl: string | undefined) {
+    const item = items.value.find((i) => i.id === id)
+    if (item) {
+      item.coverUrl = coverUrl
+      item.updatedAt = new Date().toISOString()
+      void persistItem(item)
+    }
+  }
+
   function getItem(id: string) {
     return items.value.find((i) => i.id === id)
   }
@@ -340,6 +349,7 @@ export const useBacklogStore = defineStore('backlog', () => {
     updateStatus,
     updateNotes,
     updateUserRating,
+    updateCoverUrl,
     getItem,
     filteredItems,
   }
