@@ -262,8 +262,10 @@ function clearCreator() {
           :key="s.value"
 
           class="status-chip tap-scale"
-
-          :class="{ 'status-chip--on': filterStatus === s.value }"
+          :class="[
+            `status-chip--${s.value}`,
+            { 'status-chip--on': filterStatus === s.value },
+          ]"
 
           type="button"
 
@@ -626,13 +628,27 @@ function clearCreator() {
 
 
 .status-chip--on {
-
-  background: var(--accent-soft);
-
   border-color: transparent;
+}
 
-  color: var(--accent);
+.status-chip--on.status-chip--want {
+  background: var(--status-want-bg);
+  color: var(--status-want-fg);
+}
 
+.status-chip--on.status-chip--in_progress {
+  background: var(--status-progress-bg);
+  color: var(--status-progress-fg);
+}
+
+.status-chip--on.status-chip--completed {
+  background: var(--status-completed-bg);
+  color: var(--status-completed-fg);
+}
+
+.status-chip--on.status-chip--dropped {
+  background: var(--status-dropped-bg);
+  color: var(--status-dropped-fg);
 }
 
 

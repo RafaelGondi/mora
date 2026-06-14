@@ -45,6 +45,5 @@ const labels = Object.fromEntries(STATUS_OPTIONS.map((s) => [s.value, s.label]))
 .badge--dropped {
   background: var(--status-dropped-bg);
   color: var(--status-dropped-fg);
-  border: 1px solid var(--status-dropped-border);
 }
 </style>

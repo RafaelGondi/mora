@@ -373,7 +373,10 @@ const isFirst = computed(() => itemIndex.value === 0)
           v-for="s in STATUS_OPTIONS"
           :key="s.value"
           class="status-btn tap-scale"
-          :class="{ 'status-btn--on': item.status === s.value }"
+          :class="[
+            `status-btn--${s.value}`,
+            { 'status-btn--on': item.status === s.value },
+          ]"
           type="button"
           @click="updateStatus(s.value)"
         >
@@ -807,11 +810,29 @@ const isFirst = computed(() => itemIndex.value === 0)
 }
 
 .status-btn--on {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  border-color: transparent;
   transform: scale(1.02);
-  box-shadow: 0 4px 16px rgba(91, 76, 219, 0.25);
+  box-shadow: none;
+}
+
+.status-btn--on.status-btn--want {
+  background: var(--status-want-bg);
+  color: var(--status-want-fg);
+}
+
+.status-btn--on.status-btn--in_progress {
+  background: var(--status-progress-bg);
+  color: var(--status-progress-fg);
+}
+
+.status-btn--on.status-btn--completed {
+  background: var(--status-completed-bg);
+  color: var(--status-completed-fg);
+}
+
+.status-btn--on.status-btn--dropped {
+  background: var(--status-dropped-bg);
+  color: var(--status-dropped-fg);
 }
 
 .detail__notes {
