@@ -78,7 +78,8 @@ function handleManual(data: {
   year?: string
   coverUrl?: string
   overview?: string
-  whereToWatch?: string
+  whereToWatch?: string[]
+  durationMinutes?: number
 }) {
   store.addManual({ type: activeType.value, ...data })
   notifyAdded()

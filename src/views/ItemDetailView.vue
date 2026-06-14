@@ -6,7 +6,8 @@ import { prepareLocalCoverUrl } from '@/services/localCover'
 import { fetchCoverOptions } from '@/services/coverSuggestions'
 import CoverImage from '@/components/media/CoverImage.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
-import { STATUS_OPTIONS, TYPE_LABELS, CREATOR_LABELS, itemCreator, supportsWhereToWatch } from '@/types/media'
+import { STATUS_OPTIONS, TYPE_LABELS, CREATOR_LABELS, itemCreator, supportsWhereToWatch, supportsDuration, formatWhereToWatch, formatDuration } from '@/types/media'
+import WhereToWatchSelect from '@/components/ui/WhereToWatchSelect.vue'
 import type { BacklogStatus } from '@/types/media'
 
 const route = useRoute()
@@ -40,8 +41,18 @@ function updateCreator(e: Event) {
   if (item.value) store.updateCreator(item.value.id, (e.target as HTMLInputElement).value)
 }
 
-function updateWhereToWatch(e: Event) {
-  if (item.value) store.updateWhereToWatch(item.value.id, (e.target as HTMLInputElement).value)
+function updateWhereToWatch(platforms: string[]) {
+  if (item.value) store.updateWhereToWatch(item.value.id, platforms)
+}
+
+function updateDuration(e: Event) {
+  if (!item.value) return
+  const raw = (e.target as HTMLInputElement).value.trim()
+  const minutes = raw ? parseInt(raw, 10) : undefined
+  store.updateDurationMinutes(
+    item.value.id,
+    minutes !== undefined && Number.isFinite(minutes) && minutes > 0 ? minutes : undefined,
+  )
 }
 
 function filterByCreator() {
@@ -65,9 +76,16 @@ const coversLoading = ref(false)
 const coverProcessing = ref(false)
 const coverError = ref<string | null>(null)
 
-const showWhereToWatch = computed(() => item.value && supportsWhereToWatch(item.value.type))
 const creatorLabel = computed(() => (item.value ? CREATOR_LABELS[item.value.type] : ''))
 const displayCreator = computed(() => (item.value ? itemCreator(item.value) : undefined))
+const showWhereToWatch = computed(() => item.value && supportsWhereToWatch(item.value.type))
+const showDuration = computed(() => item.value && supportsDuration(item.value.type))
+const watchLabel = computed(() => formatWhereToWatch(item.value?.whereToWatch))
+const durationLabel = computed(() => formatDuration(item.value?.durationMinutes))
+const metaLine = computed(() => {
+  if (!item.value) return ''
+  return [displayCreator.value, item.value.year, durationLabel.value].filter(Boolean).join(' · ')
+})
 
 watch(
   () => item.value?.id,
@@ -214,10 +232,8 @@ const isFirst = computed(() => itemIndex.value === 0)
       <div class="detail__info">
         <span class="detail__type" :style="{ color: typeColor }">{{ TYPE_LABELS[item.type] }}</span>
         <h1>{{ item.title }}</h1>
-        <p v-if="displayCreator || item.year" class="detail__meta">
-          {{ [displayCreator, item.year].filter(Boolean).join(' · ') }}
-        </p>
-        <p v-if="item.whereToWatch" class="detail__watch">{{ item.whereToWatch }}</p>
+        <p v-if="metaLine" class="detail__meta">{{ metaLine }}</p>
+        <p v-if="watchLabel" class="detail__watch">{{ watchLabel }}</p>
         <StatusBadge :status="item.status" />
         <button
           v-if="!editingCover"
@@ -334,13 +350,26 @@ const isFirst = computed(() => itemIndex.value === 0)
 
     <section v-if="showWhereToWatch" class="detail__section reveal reveal-d2">
       <h2>Onde assistir</h2>
-      <p class="detail__hint">Streaming, cinema, plataforma ou onde você salvou pra ver.</p>
+      <p class="detail__hint">Selecione plataformas ou cadastre outras opções.</p>
+      <WhereToWatchSelect
+        :model-value="item.whereToWatch ?? []"
+        @update:model-value="updateWhereToWatch"
+      />
+    </section>
+
+    <section v-if="showDuration" class="detail__section reveal reveal-d2">
+      <h2>Duração</h2>
+      <p class="detail__hint">Tempo total do filme, em minutos.</p>
       <input
         class="detail__input"
-        :value="item.whereToWatch ?? ''"
-        placeholder="Netflix, Prime, HBO Max, cinema…"
-        @change="updateWhereToWatch"
+        type="text"
+        inputmode="numeric"
+        maxlength="4"
+        :value="item.durationMinutes ?? ''"
+        placeholder="142"
+        @change="updateDuration"
       />
+      <p v-if="durationLabel" class="detail__duration-readout">{{ durationLabel }}</p>
     </section>
 
     <section class="detail__section reveal reveal-d3">
@@ -653,6 +682,13 @@ const isFirst = computed(() => itemIndex.value === 0)
   font-size: 13px;
   color: var(--text-tertiary);
   margin-bottom: 12px;
+}
+
+.detail__duration-readout {
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
 }
 
 .detail__rating {

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import WhereToWatchSelect from '@/components/ui/WhereToWatchSelect.vue'
 import type { MediaType } from '@/types/media'
-import { CREATOR_LABELS, supportsWhereToWatch } from '@/types/media'
+import { CREATOR_LABELS, supportsDuration, supportsWhereToWatch } from '@/types/media'
 
 const props = defineProps<{ type: MediaType }>()
 const emit = defineEmits<{
@@ -11,7 +12,8 @@ const emit = defineEmits<{
     year?: string
     coverUrl?: string
     overview?: string
-    whereToWatch?: string
+    whereToWatch?: string[]
+    durationMinutes?: number
   }]
 }>()
 
@@ -20,10 +22,17 @@ const creator = ref('')
 const year = ref('')
 const coverUrl = ref('')
 const overview = ref('')
-const whereToWatch = ref('')
+const whereToWatch = ref<string[]>([])
+const durationMinutes = ref('')
 
 const creatorLabel = computed(() => CREATOR_LABELS[props.type])
 const showWhereToWatch = computed(() => supportsWhereToWatch(props.type))
+const showDuration = computed(() => supportsDuration(props.type))
+
+function parseDurationMinutes(value: string): number | undefined {
+  const minutes = parseInt(value.trim(), 10)
+  return Number.isFinite(minutes) && minutes > 0 ? minutes : undefined
+}
 
 function handleSubmit() {
   if (!title.value.trim()) return
@@ -33,14 +42,16 @@ function handleSubmit() {
     year: year.value.trim() || undefined,
     coverUrl: coverUrl.value.trim() || undefined,
     overview: overview.value.trim() || undefined,
-    whereToWatch: whereToWatch.value.trim() || undefined,
+    whereToWatch: whereToWatch.value.length ? whereToWatch.value : undefined,
+    durationMinutes: showDuration.value ? parseDurationMinutes(durationMinutes.value) : undefined,
   })
   title.value = ''
   creator.value = ''
   year.value = ''
   coverUrl.value = ''
   overview.value = ''
-  whereToWatch.value = ''
+  whereToWatch.value = []
+  durationMinutes.value = ''
 }
 </script>
 
@@ -59,21 +70,36 @@ function handleSubmit() {
       <input v-model="creator" type="text" :placeholder="creatorLabel" />
     </label>
 
-    <label v-if="showWhereToWatch" class="manual__field">
+    <div v-if="showWhereToWatch" class="manual__field">
       <span>Onde assistir</span>
-      <input v-model="whereToWatch" type="text" placeholder="Netflix, Prime, cinema…" />
-    </label>
+      <WhereToWatchSelect v-model="whereToWatch" />
+    </div>
 
     <div class="manual__row">
       <label class="manual__field">
         <span>Ano</span>
         <input v-model="year" type="text" inputmode="numeric" placeholder="2024" maxlength="4" />
       </label>
-      <label class="manual__field manual__field--grow">
+      <label v-if="showDuration" class="manual__field manual__field--grow">
+        <span>Duração (min)</span>
+        <input
+          v-model="durationMinutes"
+          type="text"
+          inputmode="numeric"
+          placeholder="142"
+          maxlength="4"
+        />
+      </label>
+      <label v-else class="manual__field manual__field--grow">
         <span>URL da capa</span>
         <input v-model="coverUrl" type="url" placeholder="https://..." />
       </label>
     </div>
+
+    <label v-if="showDuration" class="manual__field">
+      <span>URL da capa</span>
+      <input v-model="coverUrl" type="url" placeholder="https://..." />
+    </label>
 
     <label class="manual__field">
       <span>Descrição</span>

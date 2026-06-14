@@ -13,7 +13,7 @@ import type {
   MediaType,
   SearchResult,
 } from '@/types/media'
-import { MEDIA_TYPES } from '@/types/media'
+import { MEDIA_TYPES, normalizeWhereToWatch } from '@/types/media'
 import { isLocalCover } from '@/utils/coverUrl'
 
 const STORAGE_KEY = 'mora-backlog'
@@ -55,9 +55,11 @@ function ensureSortOrders(list: BacklogItem[]): BacklogItem[] {
 }
 
 function normalizeItem(item: BacklogItem): BacklogItem {
+  const legacy = item as BacklogItem & { whereToWatch?: string | string[] }
   return {
     ...item,
     creator: item.creator ?? item.subtitle,
+    whereToWatch: normalizeWhereToWatch(legacy.whereToWatch),
   }
 }
 
@@ -100,6 +102,7 @@ function toBacklogItem(
     | 'rating'
     | 'manual'
     | 'whereToWatch'
+    | 'durationMinutes'
   >,
 ): BacklogItem {
   const now = new Date().toISOString()
@@ -117,7 +120,8 @@ function toBacklogItem(
     year: data.year,
     rating: data.rating,
     manual: data.manual,
-    whereToWatch: data.whereToWatch,
+    whereToWatch: normalizeWhereToWatch(data.whereToWatch),
+    durationMinutes: data.durationMinutes,
   }
 }
 
@@ -340,7 +344,8 @@ export const useBacklogStore = defineStore('backlog', () => {
       coverUrl: input.coverUrl?.trim() || undefined,
       overview: input.overview?.trim() || undefined,
       year: input.year?.trim() || undefined,
-      whereToWatch: input.whereToWatch?.trim() || undefined,
+      whereToWatch: normalizeWhereToWatch(input.whereToWatch),
+      durationMinutes: input.durationMinutes,
       manual: true,
     })
     item.sortOrder = nextBottomSortOrder(input.type)
@@ -399,10 +404,19 @@ export const useBacklogStore = defineStore('backlog', () => {
     }
   }
 
-  function updateWhereToWatch(id: string, whereToWatch: string) {
+  function updateWhereToWatch(id: string, whereToWatch: string[]) {
     const item = items.value.find((i) => i.id === id)
     if (item) {
-      item.whereToWatch = whereToWatch.trim() || undefined
+      item.whereToWatch = normalizeWhereToWatch(whereToWatch)
+      item.updatedAt = new Date().toISOString()
+      void persistItem(item)
+    }
+  }
+
+  function updateDurationMinutes(id: string, durationMinutes?: number) {
+    const item = items.value.find((i) => i.id === id)
+    if (item) {
+      item.durationMinutes = durationMinutes && durationMinutes > 0 ? durationMinutes : undefined
       item.updatedAt = new Date().toISOString()
       void persistItem(item)
     }
@@ -556,6 +570,7 @@ export const useBacklogStore = defineStore('backlog', () => {
     updateCoverUrl,
     updateCreator,
     updateWhereToWatch,
+    updateDurationMinutes,
     moveToTop,
     moveUp,
     moveDown,

@@ -13,7 +13,7 @@ export interface SearchResult {
   rating?: number
   overview?: string
   manual?: boolean
-  whereToWatch?: string
+  whereToWatch?: string[]
 }
 
 export interface ManualEntryInput {
@@ -23,7 +23,8 @@ export interface ManualEntryInput {
   year?: string
   coverUrl?: string
   overview?: string
-  whereToWatch?: string
+  whereToWatch?: string[]
+  durationMinutes?: number
 }
 
 export interface BacklogItem {
@@ -39,7 +40,8 @@ export interface BacklogItem {
   rating?: number
   userRating?: number
   notes?: string
-  whereToWatch?: string
+  whereToWatch?: string[]
+  durationMinutes?: number
   sortOrder?: number
   addedAt: string
   updatedAt: string
@@ -85,6 +87,34 @@ export function itemCreator(item: Pick<BacklogItem, 'creator' | 'subtitle'>): st
 
 export function supportsWhereToWatch(type: MediaType): boolean {
   return type === 'movie' || type === 'series'
+}
+
+export function supportsDuration(type: MediaType): boolean {
+  return type === 'movie'
+}
+
+export function normalizeWhereToWatch(value?: string | string[]): string[] | undefined {
+  if (!value) return undefined
+  if (Array.isArray(value)) {
+    const list = value.map((entry) => entry.trim()).filter(Boolean)
+    return list.length ? list : undefined
+  }
+  const list = value.split(/[,;|/]/).map((entry) => entry.trim()).filter(Boolean)
+  return list.length ? list : undefined
+}
+
+export function formatWhereToWatch(platforms?: string[]): string | undefined {
+  if (!platforms?.length) return undefined
+  return platforms.join(' · ')
+}
+
+export function formatDuration(minutes?: number): string | undefined {
+  if (!minutes || minutes <= 0) return undefined
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+  if (hours && mins) return `${hours}h ${mins}min`
+  if (hours) return `${hours}h`
+  return `${mins}min`
 }
 
 export function hasAutocomplete(type: MediaType): boolean {
