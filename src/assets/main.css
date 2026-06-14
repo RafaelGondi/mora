@@ -47,6 +47,17 @@
   --toast-fg: #ffffff;
 
   --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+  --status-want-bg: rgba(91, 76, 219, 0.12);
+  --status-want-fg: #4a3bc7;
+  --status-progress-bg: rgba(91, 127, 212, 0.16);
+  --status-progress-fg: #3d66b8;
+  --status-completed-bg: rgba(61, 158, 130, 0.14);
+  --status-completed-fg: #2d8270;
+  --status-dropped-bg: rgba(176, 92, 88, 0.14);
+  --status-dropped-fg: #9e4a45;
+  --status-dropped-border: rgba(176, 92, 88, 0.28);
+
   color-scheme: light;
 }
 
@@ -83,6 +94,16 @@
   --on-fill-strong: #16161a;
   --toast-bg: #eeedea;
   --toast-fg: #16161a;
+
+  --status-want-bg: rgba(123, 110, 246, 0.2);
+  --status-want-fg: #c4bcfc;
+  --status-progress-bg: rgba(109, 148, 232, 0.22);
+  --status-progress-fg: #a8c4f5;
+  --status-completed-bg: rgba(79, 191, 154, 0.2);
+  --status-completed-fg: #8ee0c4;
+  --status-dropped-bg: rgba(232, 122, 112, 0.18);
+  --status-dropped-fg: #f0a8a0;
+  --status-dropped-border: rgba(232, 122, 112, 0.32);
 
   color-scheme: dark;
 }

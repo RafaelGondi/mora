@@ -28,22 +28,23 @@ const labels = Object.fromEntries(STATUS_OPTIONS.map((s) => [s.value, s.label]))
 }
 
 .badge--want {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--status-want-bg);
+  color: var(--status-want-fg);
 }
 
 .badge--in_progress {
-  background: rgba(139, 108, 199, 0.12);
-  color: var(--series);
+  background: var(--status-progress-bg);
+  color: var(--status-progress-fg);
 }
 
 .badge--completed {
-  background: rgba(61, 158, 130, 0.12);
-  color: var(--game);
+  background: var(--status-completed-bg);
+  color: var(--status-completed-fg);
 }
 
 .badge--dropped {
-  background: var(--bg-soft);
-  color: var(--text-tertiary);
+  background: var(--status-dropped-bg);
+  color: var(--status-dropped-fg);
+  border: 1px solid var(--status-dropped-border);
 }
 </style>
