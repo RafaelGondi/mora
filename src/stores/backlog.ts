@@ -21,6 +21,13 @@ const LEGACY_STORAGE_KEY = 'ante-backlog'
 
 export type SyncStatus = 'local' | 'connecting' | 'synced' | 'error'
 
+const ACTIVE_QUEUE_STATUSES: BacklogStatus[] = ['want', 'in_progress']
+
+function statusesForFilter(status?: BacklogStatus | null): BacklogStatus[] {
+  if (status) return [status]
+  return ACTIVE_QUEUE_STATUSES
+}
+
 function compareWithinType(a: BacklogItem, b: BacklogItem): number {
   const orderA = a.sortOrder ?? Number.MAX_SAFE_INTEGER
   const orderB = b.sortOrder ?? Number.MAX_SAFE_INTEGER
@@ -291,11 +298,11 @@ export const useBacklogStore = defineStore('backlog', () => {
     return map
   })
 
-  function nextTopSortOrder(type: MediaType) {
+  function nextBottomSortOrder(type: MediaType) {
     const sameType = items.value.filter((item) => item.type === type)
     if (!sameType.length) return 0
-    const min = Math.min(...sameType.map((item) => item.sortOrder ?? 0))
-    return min - 1
+    const max = Math.max(...sameType.map((item) => item.sortOrder ?? 0))
+    return max + 1
   }
 
   function isInBacklog(externalId: string, type: MediaType) {
@@ -315,7 +322,7 @@ export const useBacklogStore = defineStore('backlog', () => {
       rating: result.rating,
       manual: result.manual,
     })
-    item.sortOrder = nextTopSortOrder(result.type)
+    item.sortOrder = nextBottomSortOrder(result.type)
     items.value.push(item)
     void persistItem(item)
     return item
@@ -336,7 +343,7 @@ export const useBacklogStore = defineStore('backlog', () => {
       whereToWatch: input.whereToWatch?.trim() || undefined,
       manual: true,
     })
-    item.sortOrder = nextTopSortOrder(input.type)
+    item.sortOrder = nextBottomSortOrder(input.type)
     items.value.push(item)
     void persistItem(item)
     return item
@@ -490,10 +497,11 @@ export const useBacklogStore = defineStore('backlog', () => {
     status?: BacklogStatus | null,
     creatorQuery?: string | null,
   ) {
+    const allowedStatuses = statusesForFilter(status)
     const query = creatorQuery?.trim().toLowerCase()
     const list = items.value.filter((item) => {
       if (item.type !== type) return false
-      if (status && item.status !== status) return false
+      if (!allowedStatuses.includes(item.status)) return false
       if (query) {
         const creator = (item.creator ?? item.subtitle ?? '').toLowerCase()
         if (!creator.includes(query)) return false
@@ -504,10 +512,19 @@ export const useBacklogStore = defineStore('backlog', () => {
     return sortWithinType(list)
   }
 
-  function uniqueCreatorsFor(type: MediaType) {
+  function countForType(type: MediaType, status?: BacklogStatus | null) {
+    const allowedStatuses = statusesForFilter(status)
+    return items.value.filter(
+      (item) => item.type === type && allowedStatuses.includes(item.status),
+    ).length
+  }
+
+  function uniqueCreatorsFor(type: MediaType, status?: BacklogStatus | null) {
+    const allowedStatuses = statusesForFilter(status)
     const names = new Set<string>()
     for (const item of items.value) {
       if (item.type !== type) continue
+      if (!allowedStatuses.includes(item.status)) continue
       const name = item.creator?.trim()
       if (name) names.add(name)
     }
@@ -547,5 +564,6 @@ export const useBacklogStore = defineStore('backlog', () => {
     uniqueCreatorsFor,
     getItem,
     filteredItems,
+    countForType,
   }
 })

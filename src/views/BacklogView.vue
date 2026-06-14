@@ -95,7 +95,7 @@ watch(filterStatus, (value) => {
 
 const creatorSuggestions = computed(() => {
   const query = filterCreator.value.trim().toLowerCase()
-  const creators = store.uniqueCreatorsFor(filterType.value)
+  const creators = store.uniqueCreatorsFor(filterType.value, filterStatus.value)
   if (!query) return creators.slice(0, 8)
   return creators.filter((name) => name.toLowerCase().includes(query)).slice(0, 8)
 })
@@ -104,7 +104,7 @@ const filtered = computed(() =>
   store.filteredItems(filterType.value, filterStatus.value, filterCreator.value),
 )
 
-const typeCount = computed(() => store.byType[filterType.value])
+const typeCount = computed(() => store.countForType(filterType.value, filterStatus.value))
 
 const canReorder = computed(() => !filterStatus.value && !filterCreator.value.trim())
 
