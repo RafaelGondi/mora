@@ -6,10 +6,28 @@ import MediaCard from '@/components/media/MediaCard.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { useCountUp } from '@/composables/useMotion'
 import { TYPE_LABELS } from '@/types/media'
-import type { MediaType } from '@/types/media'
+import type { BacklogStatus, MediaType } from '@/types/media'
 
 const store = useBacklogStore()
 const router = useRouter()
+
+const HOME_STATUS_LABELS: Partial<Record<BacklogStatus, string>> = {
+  want: 'Quero ver',
+  in_progress: 'Andamento',
+  completed: 'Feitos',
+}
+
+const statusCards = computed(() =>
+  (['want', 'in_progress', 'completed'] as BacklogStatus[]).map((status) => ({
+    status,
+    label: HOME_STATUS_LABELS[status] ?? status,
+    value: store.byStatus[status],
+  })),
+)
+
+function goToStatus(status: BacklogStatus) {
+  router.push({ path: '/backlog', query: { status } })
+}
 
 const { display: totalDisplay, animate: animateTotal } = useCountUp(() => store.totalCount)
 
@@ -39,18 +57,16 @@ watch(() => store.totalCount, () => animateTotal())
         <span class="summary__label">na fila</span>
       </div>
       <div class="summary__stats">
-        <div class="summary__stat">
-          <span class="summary__stat-val">{{ store.byStatus.want }}</span>
-          <span class="summary__stat-lbl">Quero ver</span>
-        </div>
-        <div class="summary__stat">
-          <span class="summary__stat-val">{{ store.byStatus.in_progress }}</span>
-          <span class="summary__stat-lbl">Andamento</span>
-        </div>
-        <div class="summary__stat">
-          <span class="summary__stat-val">{{ store.byStatus.completed }}</span>
-          <span class="summary__stat-lbl">Feitos</span>
-        </div>
+        <button
+          v-for="card in statusCards"
+          :key="card.status"
+          class="summary__stat tap-scale"
+          type="button"
+          @click="goToStatus(card.status)"
+        >
+          <span class="summary__stat-val">{{ card.value }}</span>
+          <span class="summary__stat-lbl">{{ card.label }}</span>
+        </button>
       </div>
     </section>
 
@@ -180,6 +196,9 @@ watch(() => store.totalCount, () => animateTotal())
   padding: 12px;
   background: var(--bg);
   border-radius: var(--radius-md);
+  border: none;
+  text-align: left;
+  cursor: pointer;
   transition: transform 0.25s cubic-bezier(0.34, 1.2, 0.64, 1);
 }
 

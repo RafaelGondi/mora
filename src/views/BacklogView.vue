@@ -23,6 +23,43 @@ const filterType = ref<MediaType>('movie')
 const filterStatus = ref<BacklogStatus | null>(null)
 const filterCreator = ref('')
 
+const STATUS_VALUES = STATUS_OPTIONS.map((s) => s.value)
+
+function parseStatus(value: unknown): BacklogStatus | null {
+  if (typeof value === 'string' && STATUS_VALUES.includes(value as BacklogStatus)) {
+    return value as BacklogStatus
+  }
+  return null
+}
+
+function buildBacklogQuery(creator: string, status: BacklogStatus | null) {
+  const query: Record<string, string> = {}
+  const trimmedCreator = creator.trim()
+  if (trimmedCreator) query.creator = trimmedCreator
+  if (status) query.status = status
+  return query
+}
+
+function syncRouteFromFilters() {
+  router.replace({
+    path: '/backlog',
+    query: buildBacklogQuery(filterCreator.value, filterStatus.value),
+  })
+}
+
+function preferredTypeForStatus(status: BacklogStatus): MediaType {
+  let best: MediaType = filterType.value
+  let bestCount = store.filteredItems(best, status).length
+  for (const type of MEDIA_TYPES) {
+    const count = store.filteredItems(type, status).length
+    if (count > bestCount) {
+      bestCount = count
+      best = type
+    }
+  }
+  return best
+}
+
 watch(
   () => route.query.creator,
   (value) => {
@@ -31,15 +68,29 @@ watch(
   { immediate: true },
 )
 
+watch(
+  () => route.query.status,
+  (value) => {
+    const status = parseStatus(value)
+    filterStatus.value = status
+    if (status && store.filteredItems(filterType.value, status).length === 0) {
+      filterType.value = preferredTypeForStatus(status)
+    }
+  },
+  { immediate: true },
+)
+
 watch(filterCreator, (value) => {
   const next = value.trim()
   const current = typeof route.query.creator === 'string' ? route.query.creator : ''
   if (next === current) return
+  syncRouteFromFilters()
+})
 
-  router.replace({
-    path: '/backlog',
-    query: next ? { creator: next } : {},
-  })
+watch(filterStatus, (value) => {
+  const current = parseStatus(route.query.status)
+  if (value === current) return
+  syncRouteFromFilters()
 })
 
 const creatorSuggestions = computed(() => {
