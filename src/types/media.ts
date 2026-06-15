@@ -25,6 +25,8 @@ export interface ManualEntryInput {
   overview?: string
   whereToWatch?: string[]
   durationMinutes?: number
+  readingStartedAt?: string
+  readingFinishedAt?: string
 }
 
 export interface BacklogItem {
@@ -42,6 +44,8 @@ export interface BacklogItem {
   notes?: string
   whereToWatch?: string[]
   durationMinutes?: number
+  readingStartedAt?: string
+  readingFinishedAt?: string
   sortOrder?: number
   addedAt: string
   updatedAt: string
@@ -91,6 +95,47 @@ export function supportsWhereToWatch(type: MediaType): boolean {
 
 export function supportsDuration(type: MediaType): boolean {
   return type === 'movie'
+}
+
+export function supportsReadingDates(type: MediaType): boolean {
+  return type === 'book'
+}
+
+export function normalizeDateValue(value?: string): string | undefined {
+  const trimmed = value?.trim()
+  if (!trimmed) return undefined
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return undefined
+
+  const parts = trimmed.split('-').map(Number)
+  if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) return undefined
+
+  const [year, month, day] = parts as [number, number, number]
+  const date = new Date(year, month - 1, day)
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return undefined
+  }
+
+  return trimmed
+}
+
+export function formatDatePt(value?: string): string | undefined {
+  const normalized = normalizeDateValue(value)
+  if (!normalized) return undefined
+  const [year, month, day] = normalized.split('-')
+  return `${day}/${month}/${year}`
+}
+
+export function formatReadingPeriod(start?: string, end?: string): string | undefined {
+  const startLabel = formatDatePt(start)
+  const endLabel = formatDatePt(end)
+  if (startLabel && endLabel) return `${startLabel} → ${endLabel}`
+  if (startLabel) return `Desde ${startLabel}`
+  if (endLabel) return `Até ${endLabel}`
+  return undefined
 }
 
 export function normalizeWhereToWatch(value?: string | string[]): string[] | undefined {

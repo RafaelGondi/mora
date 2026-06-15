@@ -6,7 +6,7 @@ import { prepareLocalCoverUrl } from '@/services/localCover'
 import { fetchCoverOptions } from '@/services/coverSuggestions'
 import CoverImage from '@/components/media/CoverImage.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
-import { STATUS_OPTIONS, TYPE_LABELS, CREATOR_LABELS, itemCreator, supportsWhereToWatch, supportsDuration, formatWhereToWatch, formatDuration } from '@/types/media'
+import { STATUS_OPTIONS, TYPE_LABELS, CREATOR_LABELS, itemCreator, supportsWhereToWatch, supportsDuration, supportsReadingDates, formatWhereToWatch, formatDuration, formatReadingPeriod } from '@/types/media'
 import WhereToWatchSelect from '@/components/ui/WhereToWatchSelect.vue'
 import type { BacklogStatus } from '@/types/media'
 
@@ -45,6 +45,16 @@ function updateWhereToWatch(platforms: string[]) {
   if (item.value) store.updateWhereToWatch(item.value.id, platforms)
 }
 
+function updateReadingStartedAt(e: Event) {
+  if (!item.value) return
+  store.updateReadingStartedAt(item.value.id, (e.target as HTMLInputElement).value)
+}
+
+function updateReadingFinishedAt(e: Event) {
+  if (!item.value) return
+  store.updateReadingFinishedAt(item.value.id, (e.target as HTMLInputElement).value)
+}
+
 function updateDuration(e: Event) {
   if (!item.value) return
   const raw = (e.target as HTMLInputElement).value.trim()
@@ -80,8 +90,12 @@ const creatorLabel = computed(() => (item.value ? CREATOR_LABELS[item.value.type
 const displayCreator = computed(() => (item.value ? itemCreator(item.value) : undefined))
 const showWhereToWatch = computed(() => item.value && supportsWhereToWatch(item.value.type))
 const showDuration = computed(() => item.value && supportsDuration(item.value.type))
+const showReadingDates = computed(() => item.value && supportsReadingDates(item.value.type))
 const watchLabel = computed(() => formatWhereToWatch(item.value?.whereToWatch))
 const durationLabel = computed(() => formatDuration(item.value?.durationMinutes))
+const readingLabel = computed(() =>
+  formatReadingPeriod(item.value?.readingStartedAt, item.value?.readingFinishedAt),
+)
 const metaLine = computed(() => {
   if (!item.value) return ''
   return [displayCreator.value, item.value.year, durationLabel.value].filter(Boolean).join(' · ')
@@ -233,6 +247,7 @@ const isFirst = computed(() => itemIndex.value === 0)
         <span class="detail__type" :style="{ color: typeColor }">{{ TYPE_LABELS[item.type] }}</span>
         <h1>{{ item.title }}</h1>
         <p v-if="metaLine" class="detail__meta">{{ metaLine }}</p>
+        <p v-if="readingLabel" class="detail__watch">{{ readingLabel }}</p>
         <p v-if="watchLabel" class="detail__watch">{{ watchLabel }}</p>
         <StatusBadge :status="item.status" />
         <button
@@ -370,6 +385,32 @@ const isFirst = computed(() => itemIndex.value === 0)
         @change="updateDuration"
       />
       <p v-if="durationLabel" class="detail__duration-readout">{{ durationLabel }}</p>
+    </section>
+
+    <section v-if="showReadingDates" class="detail__section reveal reveal-d2">
+      <h2>Leitura</h2>
+      <p class="detail__hint">Registre quando começou e terminou de ler.</p>
+      <div class="detail__date-row">
+        <label class="detail__field">
+          <span>Início</span>
+          <input
+            class="detail__input"
+            type="date"
+            :value="item.readingStartedAt ?? ''"
+            @change="updateReadingStartedAt"
+          />
+        </label>
+        <label class="detail__field">
+          <span>Fim</span>
+          <input
+            class="detail__input"
+            type="date"
+            :value="item.readingFinishedAt ?? ''"
+            @change="updateReadingFinishedAt"
+          />
+        </label>
+      </div>
+      <p v-if="readingLabel" class="detail__duration-readout">{{ readingLabel }}</p>
     </section>
 
     <section class="detail__section reveal reveal-d3">
@@ -746,6 +787,12 @@ const isFirst = computed(() => itemIndex.value === 0)
   font-size: 12px;
   font-weight: 600;
   color: var(--text-tertiary);
+}
+
+.detail__date-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
 .detail__input {

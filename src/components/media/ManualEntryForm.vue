@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import WhereToWatchSelect from '@/components/ui/WhereToWatchSelect.vue'
 import type { MediaType } from '@/types/media'
-import { CREATOR_LABELS, supportsDuration, supportsWhereToWatch } from '@/types/media'
+import { CREATOR_LABELS, supportsDuration, supportsReadingDates, supportsWhereToWatch } from '@/types/media'
 
 const props = defineProps<{ type: MediaType }>()
 const emit = defineEmits<{
@@ -14,6 +14,8 @@ const emit = defineEmits<{
     overview?: string
     whereToWatch?: string[]
     durationMinutes?: number
+    readingStartedAt?: string
+    readingFinishedAt?: string
   }]
 }>()
 
@@ -24,10 +26,13 @@ const coverUrl = ref('')
 const overview = ref('')
 const whereToWatch = ref<string[]>([])
 const durationMinutes = ref('')
+const readingStartedAt = ref('')
+const readingFinishedAt = ref('')
 
 const creatorLabel = computed(() => CREATOR_LABELS[props.type])
 const showWhereToWatch = computed(() => supportsWhereToWatch(props.type))
 const showDuration = computed(() => supportsDuration(props.type))
+const showReadingDates = computed(() => supportsReadingDates(props.type))
 
 function parseDurationMinutes(value: string): number | undefined {
   const minutes = parseInt(value.trim(), 10)
@@ -44,6 +49,8 @@ function handleSubmit() {
     overview: overview.value.trim() || undefined,
     whereToWatch: whereToWatch.value.length ? whereToWatch.value : undefined,
     durationMinutes: showDuration.value ? parseDurationMinutes(durationMinutes.value) : undefined,
+    readingStartedAt: showReadingDates.value ? readingStartedAt.value || undefined : undefined,
+    readingFinishedAt: showReadingDates.value ? readingFinishedAt.value || undefined : undefined,
   })
   title.value = ''
   creator.value = ''
@@ -52,6 +59,8 @@ function handleSubmit() {
   overview.value = ''
   whereToWatch.value = []
   durationMinutes.value = ''
+  readingStartedAt.value = ''
+  readingFinishedAt.value = ''
 }
 </script>
 
@@ -100,6 +109,17 @@ function handleSubmit() {
       <span>URL da capa</span>
       <input v-model="coverUrl" type="url" placeholder="https://..." />
     </label>
+
+    <div v-if="showReadingDates" class="manual__row">
+      <label class="manual__field manual__field--grow">
+        <span>Início da leitura</span>
+        <input v-model="readingStartedAt" type="date" />
+      </label>
+      <label class="manual__field manual__field--grow">
+        <span>Fim da leitura</span>
+        <input v-model="readingFinishedAt" type="date" />
+      </label>
+    </div>
 
     <label class="manual__field">
       <span>Descrição</span>

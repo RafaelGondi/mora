@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import CoverImage from '@/components/media/CoverImage.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
-import { TYPE_LABELS, itemCreator, supportsWhereToWatch, formatWhereToWatch } from '@/types/media'
+import { TYPE_LABELS, itemCreator, supportsWhereToWatch, supportsReadingDates, formatWhereToWatch, formatReadingPeriod } from '@/types/media'
 import type { BacklogItem } from '@/types/media'
 
 const props = defineProps<{
@@ -65,6 +65,9 @@ function openDetail() {
       <h3 class="card__title">{{ item.title }}</h3>
       <p v-if="itemCreator(item) || item.year" class="card__meta">
         {{ [itemCreator(item), item.year].filter(Boolean).join(' · ') }}
+      </p>
+      <p v-if="supportsReadingDates(item.type) && formatReadingPeriod(item.readingStartedAt, item.readingFinishedAt)" class="card__watch">
+        {{ formatReadingPeriod(item.readingStartedAt, item.readingFinishedAt) }}
       </p>
       <p v-if="supportsWhereToWatch(item.type) && formatWhereToWatch(item.whereToWatch)" class="card__watch">
         {{ formatWhereToWatch(item.whereToWatch) }}

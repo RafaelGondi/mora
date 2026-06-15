@@ -13,7 +13,7 @@ import type {
   MediaType,
   SearchResult,
 } from '@/types/media'
-import { MEDIA_TYPES, normalizeWhereToWatch } from '@/types/media'
+import { MEDIA_TYPES, normalizeDateValue, normalizeWhereToWatch } from '@/types/media'
 import { isLocalCover } from '@/utils/coverUrl'
 
 const STORAGE_KEY = 'mora-backlog'
@@ -103,6 +103,8 @@ function toBacklogItem(
     | 'manual'
     | 'whereToWatch'
     | 'durationMinutes'
+    | 'readingStartedAt'
+    | 'readingFinishedAt'
   >,
 ): BacklogItem {
   const now = new Date().toISOString()
@@ -122,6 +124,8 @@ function toBacklogItem(
     manual: data.manual,
     whereToWatch: normalizeWhereToWatch(data.whereToWatch),
     durationMinutes: data.durationMinutes,
+    readingStartedAt: normalizeDateValue(data.readingStartedAt),
+    readingFinishedAt: normalizeDateValue(data.readingFinishedAt),
   }
 }
 
@@ -346,6 +350,8 @@ export const useBacklogStore = defineStore('backlog', () => {
       year: input.year?.trim() || undefined,
       whereToWatch: normalizeWhereToWatch(input.whereToWatch),
       durationMinutes: input.durationMinutes,
+      readingStartedAt: normalizeDateValue(input.readingStartedAt),
+      readingFinishedAt: normalizeDateValue(input.readingFinishedAt),
       manual: true,
     })
     item.sortOrder = nextBottomSortOrder(input.type)
@@ -417,6 +423,24 @@ export const useBacklogStore = defineStore('backlog', () => {
     const item = items.value.find((i) => i.id === id)
     if (item) {
       item.durationMinutes = durationMinutes && durationMinutes > 0 ? durationMinutes : undefined
+      item.updatedAt = new Date().toISOString()
+      void persistItem(item)
+    }
+  }
+
+  function updateReadingStartedAt(id: string, value?: string) {
+    const item = items.value.find((i) => i.id === id)
+    if (item) {
+      item.readingStartedAt = normalizeDateValue(value)
+      item.updatedAt = new Date().toISOString()
+      void persistItem(item)
+    }
+  }
+
+  function updateReadingFinishedAt(id: string, value?: string) {
+    const item = items.value.find((i) => i.id === id)
+    if (item) {
+      item.readingFinishedAt = normalizeDateValue(value)
       item.updatedAt = new Date().toISOString()
       void persistItem(item)
     }
@@ -571,6 +595,8 @@ export const useBacklogStore = defineStore('backlog', () => {
     updateCreator,
     updateWhereToWatch,
     updateDurationMinutes,
+    updateReadingStartedAt,
+    updateReadingFinishedAt,
     moveToTop,
     moveUp,
     moveDown,

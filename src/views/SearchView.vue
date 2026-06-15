@@ -80,6 +80,8 @@ function handleManual(data: {
   overview?: string
   whereToWatch?: string[]
   durationMinutes?: number
+  readingStartedAt?: string
+  readingFinishedAt?: string
 }) {
   store.addManual({ type: activeType.value, ...data })
   notifyAdded()
