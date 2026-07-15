@@ -1,3 +1,6 @@
+import type { SearchResult } from '@/types/media'
+import { normalizeIsbn } from '@/utils/isbn'
+
 const BASE = 'https://openlibrary.org'
 
 interface OlDoc {
@@ -61,6 +64,118 @@ export async function fetchBookCoverOptions(externalId: string, title: string): 
   }
 
   return [...urls]
+}
+
+interface OlIsbnBook {
+  title?: string
+  subtitle?: string
+  authors?: { name?: string }[]
+  publish_date?: string
+  publishers?: string[]
+  number_of_pages?: number
+  cover?: { large?: string; medium?: string; small?: string }
+  covers?: { large?: string; medium?: string; small?: string }
+  url?: string
+  key?: string
+}
+
+function mapIsbnBook(isbn: string, book: OlIsbnBook): SearchResult | null {
+  if (!book.title) return null
+
+  let externalId = book.key
+  if (!externalId && book.url) {
+    const match = book.url.match(/\/books\/(OL\d+M)/)
+    if (match) externalId = `/books/${match[1]}`
+  }
+  if (!externalId) externalId = `/books/isbn:${isbn}`
+
+  const authors = (book.authors ?? [])
+    .map((author) => author.name?.trim())
+    .filter((name): name is string => Boolean(name))
+
+  const year = book.publish_date?.match(/\d{4}/)?.[0]
+  const coverUrl =
+    book.cover?.large ??
+    book.cover?.medium ??
+    book.covers?.large ??
+    `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg?default=false`
+
+  const details = [
+    book.publishers?.length ? `Editora: ${book.publishers.join(', ')}` : undefined,
+    book.number_of_pages ? `${book.number_of_pages} páginas` : undefined,
+  ].filter(Boolean)
+
+  return {
+    externalId,
+    type: 'book',
+    title: book.subtitle ? `${book.title}: ${book.subtitle}` : book.title,
+    subtitle: authors.join(', ') || undefined,
+    creator: authors.join(', ') || undefined,
+    coverUrl,
+    year,
+    overview: details.length ? details.join(' · ') : undefined,
+  }
+}
+
+export async function lookupBookByIsbn(rawIsbn: string): Promise<SearchResult | null> {
+  const isbn = normalizeIsbn(rawIsbn)
+  if (!isbn) throw new Error('ISBN inválido')
+
+  const apiUrl = `${BASE}/api/books?bibkeys=ISBN:${encodeURIComponent(isbn)}&format=json&jscmd=data`
+  const apiRes = await fetch(apiUrl)
+  if (!apiRes.ok) throw new Error('Erro ao consultar ISBN no Open Library')
+
+  const apiData = (await apiRes.json()) as Record<string, OlIsbnBook>
+  const fromApi = mapIsbnBook(isbn, apiData[`ISBN:${isbn}`] ?? {})
+  if (fromApi) return fromApi
+
+  const editionRes = await fetch(`${BASE}/isbn/${encodeURIComponent(isbn)}.json`)
+  if (!editionRes.ok) return null
+
+  const edition = (await editionRes.json()) as {
+    title?: string
+    authors?: { author?: { key?: string }; key?: string }[]
+    works?: { key?: string }[]
+    covers?: number[]
+    publish_date?: string
+    number_of_pages?: number
+    publishers?: string[]
+  }
+
+  if (!edition.title) return null
+
+  const authorNames: string[] = []
+  for (const entry of edition.authors ?? []) {
+    const authorKey = entry.author?.key ?? entry.key
+    if (!authorKey) continue
+    try {
+      const authorRes = await fetch(`${BASE}${authorKey}.json`)
+      if (!authorRes.ok) continue
+      const author = (await authorRes.json()) as { name?: string }
+      if (author.name) authorNames.push(author.name)
+    } catch {
+      /* ignora autor individual */
+    }
+  }
+
+  const coverId = edition.covers?.[0]
+  const externalId = edition.works?.[0]?.key ?? `/books/isbn:${isbn}`
+
+  return {
+    externalId,
+    type: 'book',
+    title: edition.title,
+    subtitle: authorNames.join(', ') || undefined,
+    creator: authorNames.join(', ') || undefined,
+    coverUrl: coverId ? coverUrl(coverId, 'L') : `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg?default=false`,
+    year: edition.publish_date?.match(/\d{4}/)?.[0],
+    overview: [
+      edition.publishers?.length ? `Editora: ${edition.publishers.join(', ')}` : undefined,
+      edition.number_of_pages ? `${edition.number_of_pages} páginas` : undefined,
+    ]
+      .filter(Boolean)
+      .join(' · ') || undefined,
+  }
 }
 
 export async function searchBooks(query: string) {

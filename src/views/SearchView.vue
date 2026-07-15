@@ -5,6 +5,7 @@ import { searchMedia } from '@/services/search'
 import CategoryPill from '@/components/ui/CategoryPill.vue'
 import SearchResultCard from '@/components/media/SearchResultCard.vue'
 import ManualEntryForm from '@/components/media/ManualEntryForm.vue'
+import IsbnScanner from '@/components/media/IsbnScanner.vue'
 import LoadingShimmer from '@/components/ui/LoadingShimmer.vue'
 import { MEDIA_TYPES, hasAutocomplete } from '@/types/media'
 import type { MediaType } from '@/types/media'
@@ -18,8 +19,10 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 const addedToast = ref(false)
 const showManual = ref(false)
+const showIsbnScanner = ref(false)
 
 const canSearch = computed(() => hasAutocomplete(activeType.value))
+const isBookType = computed(() => activeType.value === 'book')
 
 const placeholders: Record<MediaType, string> = {
   movie: 'Nome do filme...',
@@ -37,6 +40,7 @@ watch(activeType, () => {
   results.value = []
   error.value = null
   showManual.value = activeType.value === 'other'
+  showIsbnScanner.value = false
 })
 
 watch([query, activeType], () => {
@@ -118,9 +122,22 @@ function handleManual(data: {
         />
       </div>
 
-      <button class="search__manual-toggle" type="button" @click="showManual = !showManual">
-        {{ showManual ? 'Ocultar cadastro manual' : 'Ou adicionar manualmente' }}
-      </button>
+      <div class="search__alt-actions">
+        <button
+          v-if="isBookType"
+          class="search__manual-toggle"
+          type="button"
+          @click="showIsbnScanner = !showIsbnScanner; showManual = showIsbnScanner ? false : showManual"
+        >
+          {{ showIsbnScanner ? 'Ocultar scanner de ISBN' : 'Escanear ISBN' }}
+        </button>
+
+        <button class="search__manual-toggle" type="button" @click="showManual = !showManual; showIsbnScanner = showManual ? false : showIsbnScanner">
+          {{ showManual ? 'Ocultar cadastro manual' : 'Ou adicionar manualmente' }}
+        </button>
+      </div>
+
+      <IsbnScanner v-if="showIsbnScanner && isBookType" @added="notifyAdded" />
 
       <div v-if="error" class="search__error">
         <p>{{ error }}</p>
@@ -237,8 +254,15 @@ function handleManual(data: {
   font-size: 13px;
   font-weight: 600;
   color: var(--accent);
-  margin-bottom: 20px;
   padding: 4px 0;
+}
+
+.search__alt-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-bottom: 20px;
 }
 
 .search__error {
