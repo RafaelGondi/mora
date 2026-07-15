@@ -1,12 +1,21 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref } from 'vue'
-import { BrowserMultiFormatReader } from '@zxing/browser'
-import { BarcodeFormat, DecodeHintType } from '@zxing/library'
+import { onBeforeUnmount, ref } from 'vue'
 import { useBacklogStore } from '@/stores/backlog'
 import { lookupBookByIsbn } from '@/services/api/openLibrary'
 import SearchResultCard from '@/components/media/SearchResultCard.vue'
 import LoadingShimmer from '@/components/ui/LoadingShimmer.vue'
 import { formatIsbn, normalizeIsbn } from '@/utils/isbn'
+import {
+  createHtml5IsbnScanner,
+  html5TorchSupported,
+  ISBN_READER_ELEMENT_ID,
+  refocusHtml5Scanner,
+  scanIsbnFromImageFile,
+  startHtml5IsbnScan,
+  stopHtml5IsbnScan,
+  toggleHtml5Torch,
+} from '@/utils/isbnCamera'
+import type { Html5Qrcode } from 'html5-qrcode'
 import type { SearchResult } from '@/types/media'
 
 const emit = defineEmits<{ added: [] }>()
@@ -14,14 +23,17 @@ const emit = defineEmits<{ added: [] }>()
 const store = useBacklogStore()
 const isbnInput = ref('')
 const scanning = ref(false)
+const photoLoading = ref(false)
 const loading = ref(false)
 const error = ref<string | null>(null)
 const result = ref<SearchResult | null>(null)
 const lastIsbn = ref<string | null>(null)
+const torchOn = ref(false)
+const canTorch = ref(false)
 
-const videoRef = ref<HTMLVideoElement | null>(null)
-let reader: BrowserMultiFormatReader | null = null
-let scanControls: { stop: () => void } | null = null
+const photoInputRef = ref<HTMLInputElement | null>(null)
+const scanner = createHtml5IsbnScanner() as Html5Qrcode
+let detectedHandled = false
 
 async function lookupIsbn(raw: string) {
   const isbn = normalizeIsbn(raw)
@@ -67,7 +79,14 @@ function cameraErrorMessage(err: unknown): string {
 
   return err instanceof Error
     ? err.message
-    : 'Não foi possível acessar a câmera. Use a digitação manual do ISBN.'
+    : 'Não foi possível acessar a câmera. Use a foto ou o ISBN manual.'
+}
+
+function handleDetected(raw: string) {
+  if (detectedHandled) return
+  detectedHandled = true
+  void stopScanner()
+  void lookupIsbn(raw)
 }
 
 async function startScanner() {
@@ -75,64 +94,80 @@ async function startScanner() {
 
   if (!window.isSecureContext) {
     error.value =
-      'A câmera no celular exige HTTPS. Abra o app publicado ou use o ISBN manual abaixo.'
+      'A câmera no celular exige HTTPS. Abra o app publicado, use “Fotografar código” ou o ISBN manual.'
     return
   }
 
   if (!navigator.mediaDevices?.getUserMedia) {
-    error.value = 'Este navegador não suporta acesso à câmera. Use o ISBN manual.'
+    error.value = 'Este navegador não suporta acesso à câmera. Use a foto ou o ISBN manual.'
     return
   }
 
   error.value = null
+  detectedHandled = false
   scanning.value = true
-  await nextTick()
-
-  const video = videoRef.value
-  if (!video) {
-    scanning.value = false
-    error.value = 'Não foi possível iniciar o preview da câmera.'
-    return
-  }
+  torchOn.value = false
+  canTorch.value = false
 
   try {
-    reader ??= new BrowserMultiFormatReader(
-      new Map([[DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8]]]),
-    )
-
-    const onDetected = (detected: { getText: () => string } | undefined) => {
-      if (!detected) return
-      void stopScanner()
-      void lookupIsbn(detected.getText())
-    }
-
-    const constraints: MediaStreamConstraints[] = [
-      { video: { facingMode: { ideal: 'environment' } } },
-      { video: { facingMode: 'environment' } },
-      { video: true },
-    ]
-
-    let lastError: unknown
-    for (const constraint of constraints) {
-      try {
-        scanControls = await reader.decodeFromConstraints(constraint, video, onDetected)
-        return
-      } catch (err) {
-        lastError = err
-      }
-    }
-
-    throw lastError ?? new Error('Nenhuma câmera disponível neste dispositivo.')
+    await startHtml5IsbnScan(scanner, handleDetected)
+    canTorch.value = html5TorchSupported(scanner)
   } catch (err) {
-    scanning.value = false
+    await stopScanner()
     error.value = cameraErrorMessage(err)
   }
 }
 
 async function stopScanner() {
-  scanControls?.stop()
-  scanControls = null
+  await stopHtml5IsbnScan(scanner)
   scanning.value = false
+  torchOn.value = false
+  canTorch.value = false
+}
+
+async function handleTapToFocus() {
+  if (!scanning.value) return
+  await refocusHtml5Scanner(scanner)
+}
+
+async function handleTorchToggle() {
+  if (!scanning.value) return
+  const next = !torchOn.value
+  const ok = await toggleHtml5Torch(scanner, next)
+  if (ok) torchOn.value = next
+}
+
+function openPhotoCapture() {
+  photoInputRef.value?.click()
+}
+
+async function handlePhotoSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+
+  if (!file) return
+
+  photoLoading.value = true
+  error.value = null
+  detectedHandled = false
+
+  const wasScanning = scanning.value
+  if (wasScanning) await stopScanner()
+
+  try {
+    const isbn = await scanIsbnFromImageFile(scanner, file)
+    if (!isbn) {
+      error.value = 'Não foi possível ler o código na foto. Aproxime mais e tente outra imagem.'
+      return
+    }
+    handleDetected(isbn)
+  } catch {
+    error.value = 'Não foi possível ler o código na foto. Tente com mais luz e foco no código.'
+  } finally {
+    photoLoading.value = false
+    if (wasScanning && !detectedHandled) await startScanner()
+  }
 }
 
 function handleManualLookup() {
@@ -159,21 +194,20 @@ onBeforeUnmount(() => {
     <div class="isbn__header">
       <h3 class="isbn__title">Scanner de ISBN</h3>
       <p class="isbn__desc">
-        Aponte a câmera para o código de barras do livro ou digite o ISBN manualmente.
+        Alinhe o código de barras na área destacada ou fotografe o verso do livro.
       </p>
     </div>
 
-    <div class="isbn__scanner" :class="{ 'isbn__scanner--active': scanning }">
-      <video
-        ref="videoRef"
-        class="isbn__video"
-        :class="{ 'isbn__video--live': scanning }"
-        playsinline
-        webkit-playsinline
-        autoplay
-        muted
-      />
-      <p v-if="scanning" class="isbn__scanner-hint">Centralize o código de barras na câmera.</p>
+    <div
+      class="isbn__scanner"
+      :class="{ 'isbn__scanner--active': scanning }"
+      @click="handleTapToFocus"
+    >
+      <div :id="ISBN_READER_ELEMENT_ID" class="isbn__reader" />
+      <p v-if="!scanning" class="isbn__placeholder">
+        Abra a câmera ou fotografe o código de barras do livro.
+      </p>
+      <p v-if="scanning" class="isbn__scanner-hint">Toque na imagem para focar</p>
     </div>
 
     <div class="isbn__actions">
@@ -185,14 +219,35 @@ onBeforeUnmount(() => {
       >
         Abrir câmera
       </button>
+      <template v-else>
+        <button class="isbn__btn tap-scale" type="button" @click="stopScanner">Parar câmera</button>
+        <button
+          v-if="canTorch"
+          class="isbn__btn tap-scale"
+          :class="{ 'isbn__btn--torch-on': torchOn }"
+          type="button"
+          @click="handleTorchToggle"
+        >
+          {{ torchOn ? 'Lanterna ligada' : 'Lanterna' }}
+        </button>
+      </template>
+
       <button
-        v-else
-        class="isbn__btn tap-scale"
+        class="isbn__btn isbn__btn--photo tap-scale"
         type="button"
-        @click="stopScanner"
+        :disabled="photoLoading"
+        @click="openPhotoCapture"
       >
-        Parar câmera
+        {{ photoLoading ? 'Lendo foto…' : 'Fotografar código' }}
       </button>
+      <input
+        ref="photoInputRef"
+        class="isbn__photo-input"
+        type="file"
+        accept="image/*"
+        capture="environment"
+        @change="handlePhotoSelected"
+      />
     </div>
 
     <div class="isbn__manual">
@@ -259,8 +314,8 @@ onBeforeUnmount(() => {
   overflow: hidden;
   border-radius: var(--radius-md);
   border: 1px dashed var(--border-strong);
-  background: var(--bg-soft);
-  min-height: 180px;
+  background: #111;
+  min-height: 260px;
 }
 
 .isbn__scanner--active {
@@ -268,16 +323,33 @@ onBeforeUnmount(() => {
   border-color: var(--book);
 }
 
-.isbn__video {
+.isbn__reader {
   width: 100%;
-  height: 220px;
-  object-fit: cover;
-  display: none;
-  background: #111;
+  min-height: 260px;
 }
 
-.isbn__video--live {
-  display: block;
+.isbn__reader :deep(video) {
+  width: 100% !important;
+  height: min(52vh, 360px) !important;
+  object-fit: contain !important;
+}
+
+.isbn__reader :deep(img) {
+  display: none !important;
+}
+
+.isbn__placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.72);
+  pointer-events: none;
 }
 
 .isbn__scanner-hint {
@@ -292,6 +364,7 @@ onBeforeUnmount(() => {
   font-size: 12px;
   font-weight: 600;
   text-align: center;
+  pointer-events: none;
 }
 
 .isbn__actions,
@@ -299,10 +372,11 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 10px;
   align-items: end;
+  flex-wrap: wrap;
 }
 
-.isbn__manual {
-  flex-wrap: wrap;
+.isbn__photo-input {
+  display: none;
 }
 
 .isbn__field {
@@ -346,10 +420,26 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
+.isbn__btn:disabled {
+  opacity: 0.6;
+}
+
 .isbn__btn--primary {
   background: var(--book);
   border-color: transparent;
   color: #fff;
+}
+
+.isbn__btn--photo {
+  background: rgba(196, 146, 58, 0.12);
+  border-color: rgba(196, 146, 58, 0.28);
+  color: var(--book);
+}
+
+.isbn__btn--torch-on {
+  background: rgba(196, 146, 58, 0.16);
+  border-color: rgba(196, 146, 58, 0.35);
+  color: var(--book);
 }
 
 .isbn__error {
