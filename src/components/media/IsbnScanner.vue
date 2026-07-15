@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
+import { nextTick, onBeforeUnmount, ref } from 'vue'
 import { BrowserMultiFormatReader } from '@zxing/browser'
 import { BarcodeFormat, DecodeHintType } from '@zxing/library'
 import { useBacklogStore } from '@/stores/backlog'
@@ -52,42 +52,80 @@ async function lookupIsbn(raw: string) {
   }
 }
 
+function cameraErrorMessage(err: unknown): string {
+  if (err instanceof DOMException) {
+    if (err.name === 'NotAllowedError') {
+      return 'Permissão da câmera negada. Libere o acesso ao site nas configurações do navegador.'
+    }
+    if (err.name === 'NotFoundError') {
+      return 'Nenhuma câmera encontrada neste dispositivo.'
+    }
+    if (err.name === 'NotReadableError') {
+      return 'A câmera está em uso por outro app. Feche-o e tente novamente.'
+    }
+  }
+
+  return err instanceof Error
+    ? err.message
+    : 'Não foi possível acessar a câmera. Use a digitação manual do ISBN.'
+}
+
 async function startScanner() {
   if (scanning.value) return
 
+  if (!window.isSecureContext) {
+    error.value =
+      'A câmera no celular exige HTTPS. Abra o app publicado ou use o ISBN manual abaixo.'
+    return
+  }
+
+  if (!navigator.mediaDevices?.getUserMedia) {
+    error.value = 'Este navegador não suporta acesso à câmera. Use o ISBN manual.'
+    return
+  }
+
   error.value = null
   scanning.value = true
+  await nextTick()
+
+  const video = videoRef.value
+  if (!video) {
+    scanning.value = false
+    error.value = 'Não foi possível iniciar o preview da câmera.'
+    return
+  }
 
   try {
     reader ??= new BrowserMultiFormatReader(
       new Map([[DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8]]]),
     )
 
-    const devices = await BrowserMultiFormatReader.listVideoInputDevices()
-    const camera =
-      devices.find((device) => /back|rear|traseira|environment/i.test(device.label))?.deviceId ??
-      devices[0]?.deviceId
-
-    if (!camera || !videoRef.value) {
-      throw new Error('Nenhuma câmera disponível neste dispositivo.')
+    const onDetected = (detected: { getText: () => string } | undefined) => {
+      if (!detected) return
+      void stopScanner()
+      void lookupIsbn(detected.getText())
     }
 
-    scanControls = await reader.decodeFromVideoDevice(
-      camera,
-      videoRef.value,
-      (detected) => {
-        if (!detected) return
-        const text = detected.getText()
-        void stopScanner()
-        void lookupIsbn(text)
-      },
-    )
+    const constraints: MediaStreamConstraints[] = [
+      { video: { facingMode: { ideal: 'environment' } } },
+      { video: { facingMode: 'environment' } },
+      { video: true },
+    ]
+
+    let lastError: unknown
+    for (const constraint of constraints) {
+      try {
+        scanControls = await reader.decodeFromConstraints(constraint, video, onDetected)
+        return
+      } catch (err) {
+        lastError = err
+      }
+    }
+
+    throw lastError ?? new Error('Nenhuma câmera disponível neste dispositivo.')
   } catch (err) {
     scanning.value = false
-    error.value =
-      err instanceof Error
-        ? err.message
-        : 'Não foi possível acessar a câmera. Use a digitação manual do ISBN.'
+    error.value = cameraErrorMessage(err)
   }
 }
 
@@ -131,6 +169,8 @@ onBeforeUnmount(() => {
         class="isbn__video"
         :class="{ 'isbn__video--live': scanning }"
         playsinline
+        webkit-playsinline
+        autoplay
         muted
       />
       <p v-if="scanning" class="isbn__scanner-hint">Centralize o código de barras na câmera.</p>
