@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { useBacklogStore } from '@/stores/backlog'
 import { lookupBookByIsbn } from '@/services/api/openLibrary'
 import SearchResultCard from '@/components/media/SearchResultCard.vue'
@@ -8,7 +8,6 @@ import { formatIsbn, normalizeIsbn } from '@/utils/isbn'
 import {
   createHtml5IsbnScanner,
   html5TorchSupported,
-  ISBN_READER_ELEMENT_ID,
   refocusHtml5Scanner,
   scanIsbnFromImageFile,
   startHtml5IsbnScan,
@@ -21,6 +20,10 @@ import type { SearchResult } from '@/types/media'
 const emit = defineEmits<{ added: [] }>()
 
 const store = useBacklogStore()
+const readerElementId = `isbn-barcode-reader-${Math.random().toString(36).slice(2, 9)}`
+const scanner = shallowRef<Html5Qrcode | null>(null)
+const scannerReady = ref(false)
+
 const isbnInput = ref('')
 const scanning = ref(false)
 const photoLoading = ref(false)
@@ -32,8 +35,15 @@ const torchOn = ref(false)
 const canTorch = ref(false)
 
 const photoInputRef = ref<HTMLInputElement | null>(null)
-const scanner = createHtml5IsbnScanner() as Html5Qrcode
 let detectedHandled = false
+
+async function ensureScanner(): Promise<Html5Qrcode> {
+  if (scanner.value) return scanner.value
+  await nextTick()
+  scanner.value = createHtml5IsbnScanner(readerElementId)
+  scannerReady.value = true
+  return scanner.value
+}
 
 async function lookupIsbn(raw: string) {
   const isbn = normalizeIsbn(raw)
@@ -94,7 +104,7 @@ async function startScanner() {
 
   if (!window.isSecureContext) {
     error.value =
-      'A câmera no celular exige HTTPS. Abra o app publicado, use “Fotografar código” ou o ISBN manual.'
+      'A câmera no celular exige HTTPS. Abra o app publicado, use "Fotografar código" ou o ISBN manual.'
     return
   }
 
@@ -110,8 +120,9 @@ async function startScanner() {
   canTorch.value = false
 
   try {
-    await startHtml5IsbnScan(scanner, handleDetected)
-    canTorch.value = html5TorchSupported(scanner)
+    const activeScanner = await ensureScanner()
+    await startHtml5IsbnScan(activeScanner, handleDetected)
+    canTorch.value = html5TorchSupported(activeScanner)
   } catch (err) {
     await stopScanner()
     error.value = cameraErrorMessage(err)
@@ -119,21 +130,23 @@ async function startScanner() {
 }
 
 async function stopScanner() {
-  await stopHtml5IsbnScan(scanner)
+  if (scanner.value) {
+    await stopHtml5IsbnScan(scanner.value)
+  }
   scanning.value = false
   torchOn.value = false
   canTorch.value = false
 }
 
 async function handleTapToFocus() {
-  if (!scanning.value) return
-  await refocusHtml5Scanner(scanner)
+  if (!scanning.value || !scanner.value) return
+  await refocusHtml5Scanner(scanner.value)
 }
 
 async function handleTorchToggle() {
-  if (!scanning.value) return
+  if (!scanning.value || !scanner.value) return
   const next = !torchOn.value
-  const ok = await toggleHtml5Torch(scanner, next)
+  const ok = await toggleHtml5Torch(scanner.value, next)
   if (ok) torchOn.value = next
 }
 
@@ -156,7 +169,8 @@ async function handlePhotoSelected(event: Event) {
   if (wasScanning) await stopScanner()
 
   try {
-    const isbn = await scanIsbnFromImageFile(scanner, file)
+    const activeScanner = await ensureScanner()
+    const isbn = await scanIsbnFromImageFile(activeScanner, file)
     if (!isbn) {
       error.value = 'Não foi possível ler o código na foto. Aproxime mais e tente outra imagem.'
       return
@@ -184,8 +198,20 @@ function handleAdd() {
   isbnInput.value = ''
 }
 
+onMounted(async () => {
+  await nextTick()
+  try {
+    await ensureScanner()
+    await startScanner()
+  } catch (err) {
+    error.value =
+      err instanceof Error ? err.message : 'Não foi possível inicializar o scanner de ISBN.'
+  }
+})
+
 onBeforeUnmount(() => {
   void stopScanner()
+  scanner.value = null
 })
 </script>
 
@@ -203,10 +229,11 @@ onBeforeUnmount(() => {
       :class="{ 'isbn__scanner--active': scanning }"
       @click="handleTapToFocus"
     >
-      <div :id="ISBN_READER_ELEMENT_ID" class="isbn__reader" />
-      <p v-if="!scanning" class="isbn__placeholder">
+      <div :id="readerElementId" class="isbn__reader" />
+      <p v-if="!scanning && scannerReady" class="isbn__placeholder">
         Abra a câmera ou fotografe o código de barras do livro.
       </p>
+      <p v-else-if="!scannerReady" class="isbn__placeholder">Preparando scanner…</p>
       <p v-if="scanning" class="isbn__scanner-hint">Toque na imagem para focar</p>
     </div>
 

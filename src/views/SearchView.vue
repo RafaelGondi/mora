@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, nextTick } from 'vue'
 import { useBacklogStore } from '@/stores/backlog'
 import { searchMedia } from '@/services/search'
 import CategoryPill from '@/components/ui/CategoryPill.vue'
@@ -20,6 +20,7 @@ const error = ref<string | null>(null)
 const addedToast = ref(false)
 const showManual = ref(false)
 const showIsbnScanner = ref(false)
+const isbnScannerAnchor = ref<HTMLElement | null>(null)
 
 const canSearch = computed(() => hasAutocomplete(activeType.value))
 const isBookType = computed(() => activeType.value === 'book')
@@ -34,6 +35,12 @@ const placeholders: Record<MediaType, string> = {
 }
 
 let debounceTimer: ReturnType<typeof setTimeout>
+
+watch(showIsbnScanner, async (visible) => {
+  if (!visible) return
+  await nextTick()
+  isbnScannerAnchor.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+})
 
 watch(activeType, () => {
   query.value = ''
@@ -137,7 +144,9 @@ function handleManual(data: {
         </button>
       </div>
 
-      <IsbnScanner v-if="showIsbnScanner && isBookType" @added="notifyAdded" />
+      <div v-if="showIsbnScanner && isBookType" ref="isbnScannerAnchor">
+        <IsbnScanner @added="notifyAdded" />
+      </div>
 
       <div v-if="error" class="search__error">
         <p>{{ error }}</p>

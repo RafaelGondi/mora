@@ -19,10 +19,8 @@ const SCAN_CONFIG = {
   } satisfies MediaTrackConstraints,
 }
 
-export const ISBN_READER_ELEMENT_ID = 'isbn-barcode-reader'
-
-export function createHtml5IsbnScanner() {
-  return new Html5Qrcode(ISBN_READER_ELEMENT_ID, {
+export function createHtml5IsbnScanner(elementId: string) {
+  return new Html5Qrcode(elementId, {
     formatsToSupport: ISBN_FORMATS,
     useBarCodeDetectorIfSupported: true,
     verbose: false,
