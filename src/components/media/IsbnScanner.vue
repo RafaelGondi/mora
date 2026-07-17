@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { useBacklogStore } from '@/stores/backlog'
-import { lookupBookByIsbn } from '@/services/api/openLibrary'
+import { lookupBookByIsbn } from '@/services/api/books'
 import SearchResultCard from '@/components/media/SearchResultCard.vue'
 import LoadingShimmer from '@/components/ui/LoadingShimmer.vue'
 import { formatIsbn, normalizeIsbn } from '@/utils/isbn'
@@ -63,7 +63,7 @@ async function lookupIsbn(raw: string) {
   try {
     const book = await lookupBookByIsbn(isbn)
     if (!book) {
-      error.value = 'Nenhum livro encontrado para este ISBN.'
+      error.value = 'Nenhum livro encontrado para este ISBN. Tente buscar pelo título ou cadastrar manualmente.'
       return
     }
     result.value = book

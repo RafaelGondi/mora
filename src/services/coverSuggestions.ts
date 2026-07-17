@@ -1,6 +1,6 @@
 import type { MediaType } from '@/types/media'
 import { searchCommonsImages, wikipediaThumbnail } from '@/services/api/commons'
-import { fetchBookCoverOptions, searchBooks } from '@/services/api/openLibrary'
+import { fetchBookCoverOptions, searchBooks } from '@/services/api/books'
 import { fetchWikidataCoverOptions, searchMovies } from '@/services/api/wikidata'
 import { fetchSeriesCoverOptions, searchSeries } from '@/services/api/tvmaze'
 import { fetchGameCoverOptions, searchGames } from '@/services/api/freetogame'

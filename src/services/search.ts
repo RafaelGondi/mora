@@ -1,6 +1,6 @@
 import { searchMovies } from './api/wikidata'
 import { searchSeries } from './api/tvmaze'
-import { searchBooks } from './api/openLibrary'
+import { searchBooks } from './api/books'
 import { searchGames } from './api/freetogame'
 import { searchAlbums } from './api/musicbrainz'
 import type { MediaType, SearchResult } from '@/types/media'
