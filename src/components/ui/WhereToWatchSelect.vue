@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { AkButton, AkChip, AkInput } from '@rafael_dias/akoma'
 import {
   DEFAULT_WATCH_PLATFORMS,
   loadCustomWatchPlatforms,
@@ -50,34 +51,32 @@ function addCustom() {
 <template>
   <div class="watch-select">
     <div class="watch-select__options">
-      <button
+      <AkChip
         v-for="platform in options"
         :key="platform"
-        class="watch-select__chip tap-scale"
-        :class="{ 'watch-select__chip--on': isSelected(platform) }"
-        type="button"
+        :active="isSelected(platform)"
         @click="toggle(platform)"
       >
         {{ platform }}
-      </button>
+      </AkChip>
     </div>
 
     <div class="watch-select__add">
-      <input
+      <AkInput
         v-model="customInput"
-        class="watch-select__input"
-        type="text"
+        class="flex-1"
         placeholder="Outra plataforma…"
+        size="sm"
         @keydown.enter.prevent="addCustom"
       />
-      <button
-        class="watch-select__add-btn tap-scale"
-        type="button"
+      <AkButton
+        variant="secondary"
+        size="sm"
         :disabled="!customInput.trim()"
         @click="addCustom"
       >
         Adicionar
-      </button>
+      </AkButton>
     </div>
   </div>
 </template>
@@ -86,70 +85,18 @@ function addCustom() {
 .watch-select {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .watch-select__options {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-}
-
-.watch-select__chip {
-  padding: 8px 14px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--border-strong);
-  background: var(--bg-elevated);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  transition: all 0.25s cubic-bezier(0.34, 1.2, 0.64, 1);
-}
-
-.watch-select__chip--on {
-  background: var(--accent-soft);
-  border-color: transparent;
-  color: var(--accent);
+  gap: var(--space-2);
 }
 
 .watch-select__add {
   display: flex;
-  gap: 8px;
-}
-
-.watch-select__input {
-  flex: 1;
-  padding: 12px 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--bg-elevated);
-  font-size: 15px;
-  color: var(--text);
-}
-
-.watch-select__input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-
-.watch-select__add-btn {
-  padding: 0 16px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-muted);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
-.watch-select__add-btn:not(:disabled):active {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.watch-select__add-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+  align-items: flex-end;
+  gap: var(--space-2);
 }
 </style>

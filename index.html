@@ -4,20 +4,24 @@
     <meta charset="UTF-8" />
     <link rel="icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#f6f5f2" />
+    <meta name="theme-color" content="#f8f6f1" />
     <meta name="description" content="Mora — organize sua fila de filmes, séries, livros e jogos." />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Mora</title>
     <script>
+      // Akoma mood/accent/theme before first paint — useAkomaTheme takes over on mount.
       try {
-        if (
-          localStorage.getItem('mora-theme') === 'dark' ||
-          localStorage.getItem('ante-theme') === 'dark'
-        ) {
-          document.documentElement.setAttribute('data-theme', 'dark')
-          document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#16161a')
-        }
+        var root = document.documentElement
+        root.dataset.mood = 'app'
+        root.dataset.accent = 'violet'
+        var saved =
+          localStorage.getItem('mora-theme') || localStorage.getItem('ante-theme')
+        var dark = saved === 'dark'
+        root.dataset.theme = dark ? 'dark' : 'light'
+        document
+          .querySelector('meta[name="theme-color"]')
+          ?.setAttribute('content', dark ? '#1d211f' : '#f8f6f1')
       } catch (e) {}
     </script>
   </head>

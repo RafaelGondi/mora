@@ -15,6 +15,8 @@
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {
+    "@rafael_dias/akoma": "^0.9.0",
+    "@sysvale/cuida-icons": "^1.18.0",
     "firebase": "^12.14.0",
     "html5-qrcode": "^2.3.8",
     "pinia": "^3.0.4",

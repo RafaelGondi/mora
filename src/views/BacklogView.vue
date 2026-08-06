@@ -2,12 +2,12 @@
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import draggable from 'vuedraggable'
+import { AkButton, AkChip, AkEmptyState, AkIcon, AkIconButton, AkInput, AkList, AkPageHeader } from '@rafael_dias/akoma'
 import { useBacklogStore } from '@/stores/backlog'
 import MediaCard from '@/components/media/MediaCard.vue'
 import CategoryPill from '@/components/ui/CategoryPill.vue'
-import EmptyState from '@/components/ui/EmptyState.vue'
 import { haptic } from '@/utils/haptic'
-import { MEDIA_TYPES, STATUS_OPTIONS, TYPE_LABELS } from '@/types/media'
+import { MEDIA_TYPES, STATUS_OPTIONS, STATUS_VARIANTS, TYPE_LABELS } from '@/types/media'
 import type { BacklogStatus, BacklogItem, MediaType } from '@/types/media'
 
 type DragIndexEvent = {
@@ -200,574 +200,165 @@ function clearCreator() {
 }
 </script>
 
-
-
 <template>
-
-  <div class="backlog">
-
-    <header class="backlog__header reveal">
-
-      <span class="page-label">Coleção</span>
-
-      <h1 class="page-title">Fila</h1>
-
-      <p class="backlog__count">
-        {{ filtered.length }} de {{ typeCount }} na fila de {{ TYPE_LABELS[filterType] }}
-      </p>
-
-    </header>
-
-
-
-    <div class="backlog__search reveal reveal-d1">
-
-      <label class="backlog__search-label" for="creator-filter">Diretor, autor, artista…</label>
-
-      <div class="backlog__search-row">
-
-        <input
-
-          id="creator-filter"
-
-          v-model="filterCreator"
-
-          class="backlog__search-input"
-
-          type="search"
-
-          placeholder="Ex.: Juan Rulfo, Nolan…"
-
-          autocomplete="off"
-
-        />
-
-        <button
-
-          v-if="filterCreator"
-
-          class="backlog__search-clear tap-scale"
-
-          type="button"
-
-          aria-label="Limpar busca"
-
-          @click="clearCreator"
-
-        >
-
-          ×
-
-        </button>
-
-      </div>
-
-      <div v-if="creatorSuggestions.length" class="creator-chips">
-
-        <button
-
-          v-for="name in creatorSuggestions"
-
-          :key="name"
-
-          class="creator-chip tap-scale"
-
-          :class="{ 'creator-chip--on': filterCreator === name }"
-
-          type="button"
-
-          @click="applyCreator(name)"
-
-        >
-
-          {{ name }}
-
-        </button>
-
-      </div>
-
-    </div>
-
-
-
-    <div class="backlog__filters reveal reveal-d2">
-
-      <div class="filter-scroll">
-        <CategoryPill
-          v-for="type in MEDIA_TYPES"
-          :key="type"
-          :type="type"
-          :active="filterType === type"
-          @click="filterType = type"
-        />
-      </div>
-
-
-
-      <div class="status-row">
-
-        <button
-
-          v-for="s in STATUS_OPTIONS"
-
-          :key="s.value"
-
-          class="status-chip tap-scale"
-          :class="[
-            `status-chip--${s.value}`,
-            { 'status-chip--on': filterStatus === s.value },
-          ]"
-
-          type="button"
-
-          @click="filterStatus = filterStatus === s.value ? null : s.value"
-
-        >
-
-          {{ s.label }}
-
-        </button>
-
-      </div>
-
-    </div>
-
-
-
-    <EmptyState
-
-      v-if="!filtered.length"
-
-      title="Nada por aqui"
-
-      :description="
-
-        store.totalCount
-
-          ? 'Nenhum item corresponde aos filtros.'
-
-          : 'Adicione mídias pela busca ou cadastro manual.'
-
-      "
-
-      :action-label="store.totalCount ? undefined : 'Buscar mídias'"
-
-      @action="router.push('/search')"
-
-    />
-
-
-
-    <p v-if="filtered.length && canReorder" class="backlog__drag-hint reveal reveal-d3">
-      <span class="backlog__drag-hint-icon" aria-hidden="true">↕</span>
-      Segure um instante e arraste para reorganizar.
-    </p>
-
-    <draggable
-      v-if="filtered.length && canReorder"
-      :key="filterType"
-      v-model="dragList"
-      item-key="id"
-      v-bind="dragOptions"
-      class="backlog__list backlog__list--reorder"
-      :class="{ 'backlog__list--dragging': isDragging }"
-      @choose="onChoose"
-      @unchoose="onUnchoose"
-      @start="onDragStart"
-      @end="onDragEnd"
-    >
-      <template #item="{ element }">
-        <div
-          class="backlog__item"
-          :class="{
-            'backlog__item--pressing': pressingId === element.id,
-            'backlog__item--settled': settledId === element.id,
-          }"
-        >
-          <MediaCard
-            :item="element"
-            variant="row"
-            reorderable
-            :drag-active="isDragging"
-            :suppress-click="suppressCardClick"
+  <div class="ak-app-page ak-app-scroll">
+    <div class="page-body stack--lg">
+      <AkPageHeader
+        label="Coleção"
+        title="Fila"
+        :meta="`${filtered.length} de ${typeCount} na fila de ${TYPE_LABELS[filterType]}`"
+        variant="flush"
+      />
+
+      <section class="stack">
+        <div class="backlog__search-row">
+          <AkInput
+            v-model="filterCreator"
+            class="flex-1"
+            label="Diretor, autor, artista…"
+            placeholder="Ex.: Juan Rulfo, Nolan…"
+            type="search"
+            autocomplete="off"
+          />
+          <AkIconButton
+            v-if="filterCreator"
+            class="backlog__clear"
+            variant="ghost"
+            label="Limpar busca"
+            icon="x-outline"
+            @click="clearCreator"
           />
         </div>
+
+        <div v-if="creatorSuggestions.length" class="chip-row">
+          <AkChip
+            v-for="name in creatorSuggestions"
+            :key="name"
+            :active="filterCreator === name"
+            @click="applyCreator(name)"
+          >
+            {{ name }}
+          </AkChip>
+        </div>
+      </section>
+
+      <section class="stack">
+        <div class="chip-row">
+          <CategoryPill
+            v-for="type in MEDIA_TYPES"
+            :key="type"
+            :type="type"
+            :active="filterType === type"
+            @click="filterType = type"
+          />
+        </div>
+
+        <div class="chip-row">
+          <AkChip
+            v-for="s in STATUS_OPTIONS"
+            :key="s.value"
+            :active="filterStatus === s.value"
+            :color="`var(--${STATUS_VARIANTS[s.value] === 'accent' ? 'accent' : STATUS_VARIANTS[s.value]})`"
+            @click="filterStatus = filterStatus === s.value ? null : s.value"
+          >
+            {{ s.label }}
+          </AkChip>
+        </div>
+      </section>
+
+      <AkEmptyState
+        v-if="!filtered.length"
+        title="Nada por aqui"
+        :description="
+          store.totalCount
+            ? 'Nenhum item corresponde aos filtros.'
+            : 'Adicione mídias pela busca ou cadastro manual.'
+        "
+      >
+        <template #icon>
+          <AkIcon name="bullet-list-outline" :size="24" />
+        </template>
+        <template v-if="!store.totalCount" #action>
+          <AkButton @click="router.push('/search')">Buscar mídias</AkButton>
+        </template>
+      </AkEmptyState>
+
+      <template v-else>
+        <p class="backlog__hint">
+          <AkIcon
+            :name="canReorder ? 'swap-vertical-arrows-outline' : 'filter-outline'"
+            :size="14"
+          />
+          {{
+            canReorder
+              ? 'Segure um instante e arraste para reorganizar.'
+              : 'Limpe os filtros para reorganizar a fila.'
+          }}
+        </p>
+
+        <AkList v-if="canReorder">
+          <draggable
+            :key="filterType"
+            v-model="dragList"
+            item-key="id"
+            v-bind="dragOptions"
+            class="backlog__list"
+            :class="{ 'backlog__list--dragging': isDragging }"
+            @choose="onChoose"
+            @unchoose="onUnchoose"
+            @start="onDragStart"
+            @end="onDragEnd"
+          >
+            <template #item="{ element, index }">
+              <div
+                class="backlog__item"
+                :class="{
+                  'backlog__item--pressing': pressingId === element.id,
+                  'backlog__item--settled': settledId === element.id,
+                }"
+              >
+                <MediaCard
+                  :item="element"
+                  reorderable
+                  :drag-active="isDragging"
+                  :suppress-click="suppressCardClick"
+                  :divider="index < dragList.length - 1"
+                />
+              </div>
+            </template>
+          </draggable>
+        </AkList>
+
+        <AkList v-else :key="`static-${filterType}`">
+          <MediaCard
+            v-for="(item, i) in filtered"
+            :key="item.id"
+            :item="item"
+            :divider="i < filtered.length - 1"
+          />
+        </AkList>
       </template>
-    </draggable>
-
-    <div v-else-if="filtered.length" :key="`static-${filterType}`" class="backlog__list">
-      <p v-if="!canReorder" class="backlog__drag-hint">
-        Limpe os filtros para reorganizar a fila.
-      </p>
-      <MediaCard v-for="item in filtered" :key="item.id" :item="item" variant="row" />
     </div>
-
   </div>
-
 </template>
 
-
-
 <style scoped>
-
-.backlog {
-
-  padding: calc(28px + var(--safe-top)) 20px 24px;
-
-}
-
-
-
-.backlog__header {
-
-  margin-bottom: 20px;
-
-}
-
-
-
-.backlog__header .page-label {
-
-  display: block;
-
-  margin-bottom: 4px;
-
-}
-
-
-
-.backlog__count {
-
-  margin-top: 6px;
-
-  font-size: 14px;
-
-  color: var(--text-secondary);
-
-}
-
-
-
-.backlog__search {
-
-  margin-bottom: 18px;
-
-}
-
-
-
-.backlog__search-label {
-
-  display: block;
-
-  font-size: 12px;
-
-  font-weight: 700;
-
-  letter-spacing: 0.06em;
-
-  text-transform: uppercase;
-
-  color: var(--text-tertiary);
-
-  margin-bottom: 8px;
-
-}
-
-
-
 .backlog__search-row {
-
   display: flex;
-
-  gap: 8px;
-
-  align-items: center;
-
+  align-items: flex-end;
+  gap: var(--space-2);
 }
 
-
-
-.backlog__search-input {
-
-  flex: 1;
-
-  padding: 12px 14px;
-
-  border: 1px solid var(--border-strong);
-
-  border-radius: var(--radius-md);
-
-  background: var(--bg-elevated);
-
-  font-size: 15px;
-
-  color: var(--text);
-
-  box-shadow: var(--shadow-sm);
-
-}
-
-
-
-.backlog__search-input:focus {
-
-  outline: none;
-
-  border-color: var(--accent);
-
-  box-shadow: 0 0 0 3px var(--accent-soft);
-
-}
-
-
-
-.backlog__search-clear {
-
-  width: 36px;
-
-  height: 36px;
-
-  border-radius: var(--radius-sm);
-
-  border: 1px solid var(--border);
-
-  background: var(--bg-elevated);
-
-  font-size: 20px;
-
-  line-height: 1;
-
-  color: var(--text-secondary);
-
-}
-
-
-
-.creator-chips {
-
-  display: flex;
-
-  gap: 8px;
-
-  overflow-x: auto;
-
-  margin-top: 10px;
-
-  padding-bottom: 2px;
-
-  -ms-overflow-style: none;
-
-  scrollbar-width: none;
-
-}
-
-
-
-.creator-chips::-webkit-scrollbar {
-
-  display: none;
-
-}
-
-
-
-.creator-chip {
-
-  padding: 7px 12px;
-
-  border-radius: var(--radius-full);
-
-  border: 1px solid var(--border);
-
-  background: var(--bg-elevated);
-
-  font-size: 12px;
-
-  font-weight: 600;
-
-  color: var(--text-secondary);
-
-  white-space: nowrap;
-
-}
-
-
-
-.creator-chip--on {
-
-  background: var(--accent-soft);
-
-  border-color: transparent;
-
-  color: var(--accent);
-
-}
-
-
-
-.backlog__filters {
-
-  margin-bottom: 20px;
-
-}
-
-
-
-.filter-scroll {
-
-  display: flex;
-
-  gap: 8px;
-
-  overflow-x: auto;
-
-  overflow-y: visible;
-
-  margin: 0 -20px 14px;
-
-  padding: 6px 20px;
-
-  -ms-overflow-style: none;
-
-  scrollbar-width: none;
-
-}
-
-
-
-.filter-scroll::-webkit-scrollbar {
-
-  display: none;
-
-}
-
-
-
-.status-row {
-
-  display: flex;
-
-  flex-wrap: wrap;
-
-  gap: 8px;
-
-}
-
-
-
-.status-chip {
-
-  padding: 7px 14px;
-
-  font-size: 12px;
-
-  font-weight: 600;
-
-  color: var(--text-secondary);
-
-  background: var(--bg-elevated);
-
-  border: 1px solid var(--border);
-
-  border-radius: var(--radius-full);
-
-  transition: all 0.25s cubic-bezier(0.34, 1.2, 0.64, 1);
-
-}
-
-
-
-.status-chip--on {
-  border-color: transparent;
-}
-
-.status-chip--on.status-chip--want {
-  background: var(--status-want-bg);
-  color: var(--status-want-fg);
-}
-
-.status-chip--on.status-chip--in_progress {
-  background: var(--status-progress-bg);
-  color: var(--status-progress-fg);
-}
-
-.status-chip--on.status-chip--completed {
-  background: var(--status-completed-bg);
-  color: var(--status-completed-fg);
-}
-
-.status-chip--on.status-chip--dropped {
-  background: var(--status-dropped-bg);
-  color: var(--status-dropped-fg);
-}
-
-
-
-.backlog__drag-hint {
+.backlog__hint {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: -8px 0 14px;
-  font-size: 12px;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
   font-weight: 600;
   color: var(--text-tertiary);
 }
 
-.backlog__drag-hint-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius-full);
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 11px;
-  animation: backlog-hint-pulse 2.4s var(--ease-smooth) infinite;
-}
-
-@keyframes backlog-hint-pulse {
-  0%, 100% {
-    transform: translateY(0);
-    opacity: 0.85;
-  }
-  50% {
-    transform: translateY(-2px);
-    opacity: 1;
-  }
-}
-
-.backlog__list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  position: relative;
-  width: 100%;
-}
-
-.backlog__item {
-  width: 100%;
-  max-width: 100%;
-}
-
-.backlog__item :deep(.card--row) {
-  width: 100%;
-}
-
-.backlog__list--reorder > .backlog__item {
-  touch-action: pan-y;
-}
-
-.backlog__list--reorder:not(.backlog__list--dragging) > .backlog__item {
-  transition: transform 0.32s var(--ease-spring);
-}
-
-.backlog__list--dragging > .backlog__item {
-  touch-action: none;
-  transition: none !important;
-}
-
+/* Drag affordances — accent-tinted, no elevation (patterns.md). */
 .backlog__list--dragging > .backlog__item:not(.backlog__ghost):not(.backlog__drag) {
   opacity: 0.55;
 }
@@ -777,83 +368,58 @@ function clearCreator() {
   pointer-events: none;
 }
 
-.backlog__item--pressing :deep(.card--row) {
+.backlog__item--pressing :deep(.ak-list-row) {
   transform: scale(0.985);
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-  background: color-mix(in srgb, var(--accent-soft) 55%, var(--bg-elevated));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+  background: var(--accent-soft);
+  border-radius: var(--radius-md);
   transition:
     transform 0.16s var(--ease-spring),
-    box-shadow 0.16s var(--ease-smooth),
-    border-color 0.16s var(--ease-smooth),
     background 0.16s var(--ease-smooth);
 }
 
-.backlog__item--settled :deep(.card--row) {
+.backlog__item--settled :deep(.ak-list-row) {
   animation: backlog-settle 0.52s var(--ease-spring);
 }
 
 @keyframes backlog-settle {
   0% {
     transform: scale(1.025);
-    border-color: var(--accent);
-    box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 22%, transparent);
+    background: var(--accent-soft);
   }
   55% {
     transform: scale(0.995);
   }
   100% {
     transform: scale(1);
-    border-color: var(--border);
-    box-shadow: var(--shadow-sm);
+    background: transparent;
   }
 }
 
-.backlog__list :deep(.backlog__ghost .card--row) {
+.backlog__list :deep(.backlog__ghost .ak-list-row) {
   opacity: 0;
 }
 
 .backlog__list :deep(.backlog__ghost) {
   position: relative;
-  min-height: 88px;
+  min-height: 80px;
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--accent-soft) 70%, transparent);
+  background: var(--accent-soft);
   outline: 2px dashed color-mix(in srgb, var(--accent) 45%, transparent);
   outline-offset: -2px;
   opacity: 1 !important;
 }
 
 .backlog__list :deep(.backlog__drag) {
-  z-index: 20;
-}
-
-.backlog__list :deep(.backlog__drag .card--row) {
-  transform: scale(1.03);
-  border-color: var(--accent);
-  box-shadow:
-    0 16px 36px rgba(0, 0, 0, 0.16),
-    0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
-  opacity: 0.98;
-  transition: none;
-  cursor: grabbing;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .backlog__drag-hint-icon,
-  .backlog__item--settled :deep(.card--row) {
-    animation: none !important;
-  }
-
-  .backlog__list--reorder:not(.backlog__list--dragging) > .backlog__item,
-  .backlog__item--pressing :deep(.card--row) {
-    transition: none !important;
-  }
-
-  .backlog__list :deep(.backlog__drag .card--row) {
-    transform: none;
+  .backlog__item--pressing :deep(.ak-list-row),
+  .backlog__item--settled :deep(.ak-list-row) {
+    transition: none;
+    animation: none;
   }
 }
-
 </style>
-
-

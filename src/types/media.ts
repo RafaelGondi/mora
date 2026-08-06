@@ -1,3 +1,5 @@
+import type { BadgeVariant, CuidaIconName } from '@rafael_dias/akoma'
+
 export type MediaType = 'movie' | 'series' | 'book' | 'game' | 'album' | 'other'
 
 export type BacklogStatus = 'want' | 'in_progress' | 'completed' | 'dropped'
@@ -72,6 +74,39 @@ export const TYPE_LABELS: Record<MediaType, string> = {
   game: 'Jogo',
   album: 'Álbum',
   other: 'Outro',
+}
+
+/** Entity identity — Akoma's `--cat-*` scale, never the system accent. */
+export const TYPE_COLORS: Record<MediaType, string> = {
+  movie: 'var(--cat-1)',
+  series: 'var(--cat-2)',
+  book: 'var(--cat-3)',
+  game: 'var(--cat-4)',
+  album: 'var(--cat-5)',
+  other: 'var(--cat-6)',
+}
+
+export const TYPE_ICONS: Record<MediaType, CuidaIconName> = {
+  movie: 'videocam-outline',
+  series: 'tv-outline',
+  book: 'open-book-outline',
+  game: 'bullseye-outline',
+  album: 'headphone-outline',
+  other: 'package-outline',
+}
+
+export const STATUS_VARIANTS: Record<BacklogStatus, BadgeVariant> = {
+  want: 'accent',
+  in_progress: 'info',
+  completed: 'success',
+  dropped: 'danger',
+}
+
+export const STATUS_LABELS: Record<BacklogStatus, string> = {
+  want: 'Quero ver',
+  in_progress: 'Em andamento',
+  completed: 'Concluído',
+  dropped: 'Abandonado',
 }
 
 export const SUBTITLE_LABELS: Record<MediaType, string> = {

@@ -1,13 +1,36 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import {
+  AkButton,
+  AkChip,
+  AkEmptyState,
+  AkIconButton,
+  AkInput,
+  AkSectionHeader,
+  AkSheet,
+  AkTextarea,
+} from '@rafael_dias/akoma'
 import { useBacklogStore } from '@/stores/backlog'
 import { prepareLocalCoverUrl } from '@/services/localCover'
 import { fetchCoverOptions } from '@/services/coverSuggestions'
 import CoverImage from '@/components/media/CoverImage.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
-import { STATUS_OPTIONS, TYPE_LABELS, CREATOR_LABELS, itemCreator, supportsWhereToWatch, supportsDuration, supportsReadingDates, formatWhereToWatch, formatDuration, formatReadingPeriod } from '@/types/media'
+import NativeField from '@/components/ui/NativeField.vue'
 import WhereToWatchSelect from '@/components/ui/WhereToWatchSelect.vue'
+import {
+  STATUS_OPTIONS,
+  TYPE_COLORS,
+  TYPE_LABELS,
+  CREATOR_LABELS,
+  itemCreator,
+  supportsWhereToWatch,
+  supportsDuration,
+  supportsReadingDates,
+  formatWhereToWatch,
+  formatDuration,
+  formatReadingPeriod,
+} from '@/types/media'
 import type { BacklogStatus } from '@/types/media'
 
 const route = useRoute()
@@ -16,48 +39,35 @@ const store = useBacklogStore()
 
 const item = computed(() => store.getItem(route.params.id as string))
 
-const typeColor = computed(() => {
-  if (!item.value) return 'var(--accent)'
-  const map = {
-    movie: 'var(--movie)',
-    series: 'var(--series)',
-    book: 'var(--book)',
-    game: 'var(--game)',
-    album: 'var(--album)',
-    other: 'var(--other)',
-  }
-  return map[item.value.type]
-})
+const typeColor = computed(() => (item.value ? TYPE_COLORS[item.value.type] : 'var(--accent)'))
 
 function updateStatus(status: BacklogStatus) {
   if (item.value) store.updateStatus(item.value.id, status)
 }
 
-function updateNotes(e: Event) {
-  if (item.value) store.updateNotes(item.value.id, (e.target as HTMLTextAreaElement).value)
+function updateNotes(value: string) {
+  if (item.value) store.updateNotes(item.value.id, value)
 }
 
-function updateCreator(e: Event) {
-  if (item.value) store.updateCreator(item.value.id, (e.target as HTMLInputElement).value)
+function updateCreator(value: string) {
+  if (item.value) store.updateCreator(item.value.id, value)
 }
 
 function updateWhereToWatch(platforms: string[]) {
   if (item.value) store.updateWhereToWatch(item.value.id, platforms)
 }
 
-function updateReadingStartedAt(e: Event) {
-  if (!item.value) return
-  store.updateReadingStartedAt(item.value.id, (e.target as HTMLInputElement).value)
+function updateReadingStartedAt(value: string) {
+  if (item.value) store.updateReadingStartedAt(item.value.id, value)
 }
 
-function updateReadingFinishedAt(e: Event) {
-  if (!item.value) return
-  store.updateReadingFinishedAt(item.value.id, (e.target as HTMLInputElement).value)
+function updateReadingFinishedAt(value: string) {
+  if (item.value) store.updateReadingFinishedAt(item.value.id, value)
 }
 
-function updateDuration(e: Event) {
+function updateDuration(value: string) {
   if (!item.value) return
-  const raw = (e.target as HTMLInputElement).value.trim()
+  const raw = value.trim()
   const minutes = raw ? parseInt(raw, 10) : undefined
   store.updateDurationMinutes(
     item.value.id,
@@ -69,7 +79,7 @@ function filterByCreator() {
   if (!item.value) return
   const name = itemCreator(item.value)
   if (!name) return
-  router.push({ path: '/backlog', query: { creator: name } })
+  void router.push({ path: '/backlog', query: { creator: name } })
 }
 
 function setRating(value: number) {
@@ -85,6 +95,7 @@ const coverOptions = ref<string[]>([])
 const coversLoading = ref(false)
 const coverProcessing = ref(false)
 const coverError = ref<string | null>(null)
+const confirmRemove = ref(false)
 
 const creatorLabel = computed(() => (item.value ? CREATOR_LABELS[item.value.type] : ''))
 const displayCreator = computed(() => (item.value ? itemCreator(item.value) : undefined))
@@ -214,10 +225,10 @@ function removeCover() {
 }
 
 function remove() {
-  if (item.value && confirm('Remover este item da fila?')) {
-    store.removeItem(item.value.id)
-    router.push('/backlog')
-  }
+  if (!item.value) return
+  store.removeItem(item.value.id)
+  confirmRemove.value = false
+  void router.push('/backlog')
 }
 
 const itemIndex = computed(() => (item.value ? store.itemPosition(item.value.id) : -1))
@@ -230,48 +241,196 @@ const isFirst = computed(() => itemIndex.value === 0)
 </script>
 
 <template>
-  <div v-if="item" class="detail">
-    <button class="detail__back tap-scale" type="button" @click="router.back()">← Voltar</button>
-
-    <div class="detail__hero reveal">
-      <div class="detail__cover-wrap">
-        <CoverImage
-          :src="heroCover"
-          :alt="`Capa de ${item.title}`"
-          :fallback-letter="item.title.charAt(0)"
-          :accent="typeColor"
-          class="detail__cover"
+  <div class="ak-app-page ak-app-scroll">
+    <div v-if="item" class="page-body stack--lg">
+      <div>
+        <AkIconButton
+          variant="ghost"
+          label="Voltar"
+          icon="arrow-left-outline"
+          @click="router.back()"
         />
       </div>
-      <div class="detail__info">
-        <span class="detail__type" :style="{ color: typeColor }">{{ TYPE_LABELS[item.type] }}</span>
-        <h1>{{ item.title }}</h1>
-        <p v-if="metaLine" class="detail__meta">{{ metaLine }}</p>
-        <p v-if="readingLabel" class="detail__watch">{{ readingLabel }}</p>
-        <p v-if="watchLabel" class="detail__watch">{{ watchLabel }}</p>
-        <StatusBadge :status="item.status" />
-        <button
-          v-if="!editingCover"
-          class="detail__edit-cover tap-scale"
-          type="button"
-          @click="openCoverEditor"
-        >
-          Editar capa
-        </button>
+
+      <div class="detail__hero reveal">
+        <div class="cover cover--hero">
+          <CoverImage
+            :src="heroCover"
+            :alt="`Capa de ${item.title}`"
+            :fallback-letter="item.title.charAt(0)"
+            :accent="typeColor"
+          />
+        </div>
+        <div class="detail__info stack">
+          <div>
+            <span class="cat-label" :style="{ color: typeColor }">
+              {{ TYPE_LABELS[item.type] }}
+            </span>
+            <h1 class="detail__title">{{ item.title }}</h1>
+            <p v-if="metaLine" class="detail__meta">{{ metaLine }}</p>
+            <p v-if="readingLabel" class="detail__meta">{{ readingLabel }}</p>
+            <p v-if="watchLabel" class="detail__meta">{{ watchLabel }}</p>
+          </div>
+          <div class="detail__hero-actions">
+            <StatusBadge :status="item.status" />
+            <AkButton variant="ghost" size="sm" @click="openCoverEditor">Editar capa</AkButton>
+          </div>
+        </div>
       </div>
+
+      <section v-if="item.overview">
+        <AkSectionHeader title="Sinopse" />
+        <p class="detail__overview">{{ item.overview }}</p>
+      </section>
+
+      <section class="stack">
+        <AkSectionHeader :title="creatorLabel" />
+        <AkInput
+          :model-value="item.creator ?? ''"
+          :placeholder="creatorLabel"
+          @update:model-value="updateCreator"
+        />
+        <AkButton v-if="displayCreator" variant="ghost" size="sm" @click="filterByCreator">
+          Ver tudo de {{ displayCreator }}
+        </AkButton>
+      </section>
+
+      <section v-if="showWhereToWatch" class="stack">
+        <AkSectionHeader title="Onde assistir" />
+        <p class="detail__hint">Selecione plataformas ou cadastre outras opções.</p>
+        <WhereToWatchSelect
+          :model-value="item.whereToWatch ?? []"
+          @update:model-value="updateWhereToWatch"
+        />
+      </section>
+
+      <section v-if="showDuration" class="stack">
+        <AkSectionHeader title="Duração" />
+        <p class="detail__hint">Tempo total do filme, em minutos.</p>
+        <NativeField
+          :model-value="String(item.durationMinutes ?? '')"
+          inputmode="numeric"
+          :maxlength="4"
+          placeholder="142"
+          @update:model-value="updateDuration"
+        />
+        <p v-if="durationLabel" class="detail__readout">{{ durationLabel }}</p>
+      </section>
+
+      <section v-if="showReadingDates" class="stack">
+        <AkSectionHeader title="Leitura" />
+        <p class="detail__hint">Registre quando começou e terminou de ler.</p>
+        <div class="detail__date-row">
+          <NativeField
+            class="flex-1"
+            label="Início"
+            type="date"
+            :model-value="item.readingStartedAt ?? ''"
+            @update:model-value="updateReadingStartedAt"
+          />
+          <NativeField
+            class="flex-1"
+            label="Fim"
+            type="date"
+            :model-value="item.readingFinishedAt ?? ''"
+            @update:model-value="updateReadingFinishedAt"
+          />
+        </div>
+        <p v-if="readingLabel" class="detail__readout">{{ readingLabel }}</p>
+      </section>
+
+      <section class="stack">
+        <AkSectionHeader title="Minha nota" />
+        <p class="detail__hint">Toque para avaliar. Toque de novo na mesma estrela para limpar.</p>
+        <div class="detail__rating" role="group" aria-label="Nota pessoal">
+          <button
+            v-for="value in stars"
+            :key="value"
+            class="rating-star tap-scale"
+            :class="{ 'rating-star--on': (item.userRating ?? 0) >= value }"
+            type="button"
+            :aria-label="`${value} de 5 estrelas`"
+            :aria-pressed="(item.userRating ?? 0) >= value"
+            @click="setRating(value)"
+          >
+            <span aria-hidden="true">★</span>
+          </button>
+          <span v-if="item.userRating" class="detail__rating-label numeric">
+            {{ item.userRating }}/5
+          </span>
+        </div>
+        <p v-if="item.rating" class="detail__hint">
+          Nota da fonte: {{ item.rating.toFixed(1) }}
+        </p>
+      </section>
+
+      <section class="stack">
+        <AkSectionHeader title="Status" />
+        <div class="chip-row">
+          <AkChip
+            v-for="s in STATUS_OPTIONS"
+            :key="s.value"
+            :active="item.status === s.value"
+            @click="updateStatus(s.value)"
+          >
+            {{ s.label }}
+          </AkChip>
+        </div>
+      </section>
+
+      <section class="stack">
+        <AkSectionHeader title="Posição na fila" />
+        <p v-if="itemIndex >= 0" class="detail__hint">
+          {{ itemIndex + 1 }}º de {{ typeTotal }} na fila de {{ TYPE_LABELS[item.type] }}.
+        </p>
+        <div class="detail__order-actions">
+          <AkButton variant="secondary" size="sm" :disabled="isFirst" @click="store.moveToTop(item.id)">
+            Primeiro
+          </AkButton>
+          <AkButton variant="secondary" size="sm" :disabled="!canMoveUp" @click="store.moveUp(item.id)">
+            Subir
+          </AkButton>
+          <AkButton variant="secondary" size="sm" :disabled="!canMoveDown" @click="store.moveDown(item.id)">
+            Descer
+          </AkButton>
+        </div>
+      </section>
+
+      <section class="stack">
+        <AkSectionHeader title="Notas pessoais" />
+        <AkTextarea
+          :model-value="item.notes ?? ''"
+          placeholder="O que você achou? Por que quer ver?"
+          :rows="4"
+          @update:model-value="updateNotes"
+        />
+      </section>
+
+      <AkButton variant="danger" block @click="confirmRemove = true">
+        Remover da fila
+      </AkButton>
     </div>
 
-    <Transition name="cover-panel">
-      <div v-if="editingCover" class="detail__cover-panel reveal">
-        <p class="detail__cover-tip">
-          Use <strong>Galeria</strong> (fica neste aparelho, sem custo) ou <strong>Sugerir capas</strong>.
-          No computador, também pode colar uma URL.
+    <div v-else class="page-body">
+      <AkEmptyState title="Item não encontrado" description="Ele pode ter sido removido da fila.">
+        <template #action>
+          <AkButton @click="router.push('/backlog')">Voltar à fila</AkButton>
+        </template>
+      </AkEmptyState>
+    </div>
+
+    <!-- Cover editing lives in a sheet, not an inline panel (patterns.md). -->
+    <AkSheet v-model:open="editingCover" title="Editar capa" close-label="Fechar">
+      <div class="sheet-body">
+        <p class="detail__hint">
+          Use <strong>Galeria</strong> (fica neste aparelho, sem custo) ou
+          <strong>Sugerir capas</strong>. No computador, também pode colar uma URL.
         </p>
 
         <div class="detail__cover-tools">
-          <label class="detail__cover-tool tap-scale">
+          <label class="detail__file-btn">
             <input
-              class="detail__cover-file"
+              class="detail__file-input"
               type="file"
               accept="image/*"
               :disabled="coverProcessing"
@@ -279,399 +438,195 @@ const isFirst = computed(() => itemIndex.value === 0)
             />
             {{ coverProcessing ? 'Processando…' : 'Galeria' }}
           </label>
-          <button
-            class="detail__cover-tool tap-scale"
-            type="button"
-            :disabled="coversLoading"
+          <AkButton
+            variant="secondary"
+            :loading="coversLoading"
             @click="loadCoverSuggestions"
           >
             {{ coversLoading ? 'Buscando…' : 'Sugerir capas' }}
-          </button>
+          </AkButton>
         </div>
 
         <div v-if="coverOptions.length" class="detail__cover-grid">
           <button
             v-for="url in coverOptions"
             :key="url"
-            class="detail__cover-option tap-scale"
+            class="detail__cover-option"
             :class="{ 'detail__cover-option--on': coverDraft === url }"
             type="button"
-            :aria-label="'Usar esta capa'"
+            aria-label="Usar esta capa"
             @click="pickCoverUrl(url)"
           >
             <img :src="url" alt="" loading="lazy" />
           </button>
         </div>
 
-        <label class="detail__field">
-          <span>URL da capa</span>
-          <input
-            v-model="coverDraft"
-            class="detail__input"
-            type="url"
-            placeholder="https://covers.openlibrary.org/b/id/..."
-            @keydown.enter.prevent="saveCover"
-          />
-        </label>
+        <AkInput
+          v-model="coverDraft"
+          label="URL da capa"
+          type="url"
+          placeholder="https://covers.openlibrary.org/b/id/..."
+          :error="coverError ?? undefined"
+          @keydown.enter.prevent="saveCover"
+        />
 
-        <p v-if="coverError" class="detail__cover-error">{{ coverError }}</p>
+        <div class="sheet-actions">
+          <AkButton variant="secondary" @click="cancelCoverEdit">Cancelar</AkButton>
+          <AkButton :disabled="!coverChanged" @click="saveCover">Salvar</AkButton>
+        </div>
+        <AkButton
+          v-if="item?.coverUrl || coverDraft.trim()"
+          variant="danger"
+          block
+          @click="removeCover"
+        >
+          Remover capa
+        </AkButton>
+      </div>
+    </AkSheet>
 
-        <div class="detail__cover-actions">
-          <button
-            class="detail__cover-save tap-scale"
-            type="button"
-            :disabled="!coverChanged"
-            @click="saveCover"
-          >
-            Salvar
-          </button>
-          <button class="detail__cover-cancel tap-scale" type="button" @click="cancelCoverEdit">
-            Cancelar
-          </button>
-          <button
-            v-if="item.coverUrl || coverDraft.trim()"
-            class="detail__cover-remove tap-scale"
-            type="button"
-            @click="removeCover"
-          >
-            Remover
-          </button>
+    <AkSheet v-model:open="confirmRemove" title="Remover item" close-label="Fechar">
+      <div class="sheet-body">
+        <p class="detail__hint">
+          Isso remove <strong>{{ item?.title }}</strong> da sua fila. Não dá para desfazer.
+        </p>
+        <div class="sheet-actions">
+          <AkButton variant="secondary" @click="confirmRemove = false">Cancelar</AkButton>
+          <AkButton variant="danger" @click="remove">Remover</AkButton>
         </div>
       </div>
-    </Transition>
-
-    <section v-if="item.overview" class="detail__section reveal reveal-d1">
-      <h2>Sinopse</h2>
-      <p>{{ item.overview }}</p>
-    </section>
-
-    <section class="detail__section reveal reveal-d2">
-      <h2>{{ creatorLabel }}</h2>
-      <input
-        class="detail__input"
-        :value="item.creator ?? ''"
-        :placeholder="creatorLabel"
-        @change="updateCreator"
-      />
-      <button
-        v-if="displayCreator"
-        class="detail__creator-link tap-scale"
-        type="button"
-        @click="filterByCreator"
-      >
-        Ver tudo de {{ displayCreator }}
-      </button>
-    </section>
-
-    <section v-if="showWhereToWatch" class="detail__section reveal reveal-d2">
-      <h2>Onde assistir</h2>
-      <p class="detail__hint">Selecione plataformas ou cadastre outras opções.</p>
-      <WhereToWatchSelect
-        :model-value="item.whereToWatch ?? []"
-        @update:model-value="updateWhereToWatch"
-      />
-    </section>
-
-    <section v-if="showDuration" class="detail__section reveal reveal-d2">
-      <h2>Duração</h2>
-      <p class="detail__hint">Tempo total do filme, em minutos.</p>
-      <input
-        class="detail__input"
-        type="text"
-        inputmode="numeric"
-        maxlength="4"
-        :value="item.durationMinutes ?? ''"
-        placeholder="142"
-        @change="updateDuration"
-      />
-      <p v-if="durationLabel" class="detail__duration-readout">{{ durationLabel }}</p>
-    </section>
-
-    <section v-if="showReadingDates" class="detail__section reveal reveal-d2">
-      <h2>Leitura</h2>
-      <p class="detail__hint">Registre quando começou e terminou de ler.</p>
-      <div class="detail__date-row">
-        <label class="detail__field">
-          <span>Início</span>
-          <input
-            class="detail__input"
-            type="date"
-            :value="item.readingStartedAt ?? ''"
-            @change="updateReadingStartedAt"
-          />
-        </label>
-        <label class="detail__field">
-          <span>Fim</span>
-          <input
-            class="detail__input"
-            type="date"
-            :value="item.readingFinishedAt ?? ''"
-            @change="updateReadingFinishedAt"
-          />
-        </label>
-      </div>
-      <p v-if="readingLabel" class="detail__duration-readout">{{ readingLabel }}</p>
-    </section>
-
-    <section class="detail__section reveal reveal-d3">
-      <h2>Minha nota</h2>
-      <p class="detail__hint">Toque para avaliar. Toque de novo na mesma estrela para limpar.</p>
-      <div class="detail__rating" role="group" aria-label="Nota pessoal">
-        <button
-          v-for="value in stars"
-          :key="value"
-          class="rating-star tap-scale"
-          :class="{ 'rating-star--on': (item.userRating ?? 0) >= value }"
-          type="button"
-          :aria-label="`${value} de 5 estrelas`"
-          :aria-pressed="(item.userRating ?? 0) >= value"
-          @click="setRating(value)"
-        >
-          <span aria-hidden="true">★</span>
-        </button>
-        <span v-if="item.userRating" class="detail__rating-label">{{ item.userRating }}/5</span>
-      </div>
-      <p v-if="item.rating" class="detail__api-rating">
-        Nota da fonte: {{ item.rating.toFixed(1) }}
-      </p>
-    </section>
-
-    <section class="detail__section reveal reveal-d4">
-      <h2>Status</h2>
-      <div class="detail__status-grid">
-        <button
-          v-for="s in STATUS_OPTIONS"
-          :key="s.value"
-          class="status-btn tap-scale"
-          :class="[
-            `status-btn--${s.value}`,
-            { 'status-btn--on': item.status === s.value },
-          ]"
-          type="button"
-          @click="updateStatus(s.value)"
-        >
-          {{ s.label }}
-        </button>
-      </div>
-    </section>
-
-    <section class="detail__section reveal reveal-d5">
-      <h2>Posição na fila</h2>
-      <p v-if="itemIndex >= 0" class="detail__hint">
-        {{ itemIndex + 1 }}º de {{ typeTotal }} na fila de {{ TYPE_LABELS[item.type] }}.
-      </p>
-      <div class="detail__order-actions">
-        <button
-          class="order-btn tap-scale"
-          type="button"
-          :disabled="isFirst"
-          @click="store.moveToTop(item.id)"
-        >
-          Primeiro
-        </button>
-        <button
-          class="order-btn tap-scale"
-          type="button"
-          :disabled="!canMoveUp"
-          @click="store.moveUp(item.id)"
-        >
-          Subir
-        </button>
-        <button
-          class="order-btn tap-scale"
-          type="button"
-          :disabled="!canMoveDown"
-          @click="store.moveDown(item.id)"
-        >
-          Descer
-        </button>
-      </div>
-    </section>
-
-    <section class="detail__section reveal reveal-d6">
-      <h2>Notas pessoais</h2>
-      <textarea
-        class="detail__notes"
-        :value="item.notes ?? ''"
-        placeholder="O que você achou? Por que quer ver?"
-        rows="4"
-        @change="updateNotes"
-      />
-    </section>
-
-    <button class="detail__remove tap-scale reveal reveal-d7" type="button" @click="remove">
-      Remover da fila
-    </button>
-  </div>
-
-  <div v-else class="detail__missing">
-    <p>Item não encontrado.</p>
-    <button type="button" @click="router.push('/backlog')">Voltar à fila</button>
+    </AkSheet>
   </div>
 </template>
 
 <style scoped>
-.detail {
-  padding: calc(16px + var(--safe-top)) 20px 24px;
-}
-
-.detail__back {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: 16px;
-}
-
 .detail__hero {
   display: flex;
-  gap: 20px;
-  margin-bottom: 28px;
-}
-
-.detail__cover-wrap {
-  width: 120px;
-  flex-shrink: 0;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  box-shadow: var(--shadow-md);
-  background: var(--bg-soft);
-  animation: cover-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-@keyframes cover-in {
-  from {
-    opacity: 0;
-    transform: translateY(12px) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.detail__cover {
-  width: 100%;
-  aspect-ratio: 2/3;
-}
-
-.detail__cover :deep(.cover-placeholder) {
-  font-size: 3rem;
+  gap: var(--space-5);
 }
 
 .detail__info {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-top: 4px;
+  flex: 1;
+  min-width: 0;
+  justify-content: space-between;
 }
 
-.detail__type {
-  font-size: 11px;
+.detail__title {
+  margin-top: var(--space-1);
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
   font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.detail__info h1 {
-  font-size: 24px;
-  line-height: 1.15;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
 .detail__meta {
-  font-size: 14px;
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
   color: var(--text-secondary);
 }
 
-.detail__watch {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--accent);
-}
-
-.detail__creator-link {
-  margin-top: 8px;
-  padding: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--accent);
-  text-align: left;
-}
-
-.detail__edit-cover {
-  align-self: flex-start;
-  margin-top: 4px;
-  padding: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--accent);
-}
-
-.detail__cover-panel {
-  margin: -12px 0 20px;
-  padding: 14px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
+.detail__hero-actions {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
-.detail__cover-tip {
-  font-size: 13px;
+.detail__overview {
+  font-size: var(--text-md);
   color: var(--text-secondary);
-  line-height: 1.45;
-  margin: 0;
+  line-height: 1.6;
 }
 
-.detail__cover-tip strong {
-  color: var(--text);
+.detail__hint {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.detail__readout {
+  font-size: var(--text-sm);
   font-weight: 600;
+  color: var(--accent);
 }
 
+.detail__date-row,
+.detail__order-actions,
 .detail__cover-tools {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
-.detail__cover-tool {
-  padding: 10px 14px;
-  border-radius: var(--radius-sm);
+.detail__order-actions > *,
+.detail__cover-tools > * {
+  flex: 1;
+}
+
+.detail__rating {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.rating-star {
+  font-size: 26px;
+  line-height: 1;
+  padding: 2px;
+  background: none;
+  border: 0;
+  color: var(--border-strong);
+  transition: color var(--transition), transform var(--transition);
+}
+
+.rating-star--on {
+  color: var(--warning);
+}
+
+.rating-star:active {
+  transform: scale(0.9);
+}
+
+.detail__rating-label {
+  margin-left: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+
+/* File input styled as a secondary button. */
+.detail__file-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--space-5);
+  border-radius: var(--button-radius);
   border: 1px solid var(--border-strong);
-  background: var(--bg);
-  font-size: 13px;
+  background: var(--bg-soft);
+  color: var(--text);
+  font-size: var(--text-md);
   font-weight: 600;
-  color: var(--accent);
+  cursor: pointer;
 }
 
-.detail__cover-tool:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.detail__cover-file {
+.detail__file-input {
   display: none;
 }
 
 .detail__cover-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
 }
 
 .detail__cover-option {
-  aspect-ratio: 2/3;
-  border-radius: 8px;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   border: 2px solid transparent;
   background: var(--bg-soft);
-}
-
-.detail__cover-option--on {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft);
+  padding: 0;
 }
 
 .detail__cover-option img {
@@ -680,293 +635,7 @@ const isFirst = computed(() => itemIndex.value === 0)
   object-fit: cover;
 }
 
-.detail__cover-error {
-  font-size: 12px;
-  color: #d64545;
-  margin: 0;
-}
-
-.cover-panel-enter-active,
-.cover-panel-leave-active {
-  transition:
-    opacity 0.2s ease,
-    transform 0.2s ease;
-}
-
-.cover-panel-enter-from,
-.cover-panel-leave-to {
-  opacity: 0;
-  transform: translateY(-6px);
-}
-
-.detail__section {
-  margin-bottom: 24px;
-}
-
-.detail__section h2 {
-  font-family: var(--font-body);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-  margin-bottom: 10px;
-}
-
-.detail__section p {
-  font-size: 15px;
-  line-height: 1.6;
-  color: var(--text-secondary);
-}
-
-.detail__hint {
-  font-size: 13px;
-  color: var(--text-tertiary);
-  margin-bottom: 12px;
-}
-
-.detail__duration-readout {
-  margin-top: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.detail__rating {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.rating-star {
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
-  font-size: 22px;
-  line-height: 1;
-  color: var(--text-tertiary);
-  transition:
-    color 0.2s ease,
-    transform 0.2s cubic-bezier(0.34, 1.2, 0.64, 1),
-    border-color 0.2s ease,
-    background 0.2s ease;
-}
-
-.rating-star--on {
-  color: #e8a317;
-  border-color: rgba(232, 163, 23, 0.35);
-  background: rgba(232, 163, 23, 0.1);
-}
-
-.detail__rating-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-left: 4px;
-}
-
-.detail__api-rating {
-  margin-top: 10px;
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-
-.detail__field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.detail__field span {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-tertiary);
-}
-
-.detail__date-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.detail__input {
-  width: 100%;
-  padding: 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  background: var(--bg-elevated);
-  font-size: 15px;
-  line-height: 1.4;
-  color: var(--text);
-  box-shadow: var(--shadow-sm);
-  transition: border-color 0.25s ease, box-shadow 0.25s ease;
-}
-
-.detail__input:focus {
-  outline: none;
+.detail__cover-option--on {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-
-.detail__cover-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.detail__cover-save,
-.detail__cover-cancel,
-.detail__cover-remove {
-  padding: 10px 14px;
-  border-radius: var(--radius-sm);
-  font-size: 13px;
-  font-weight: 600;
-  transition: background 0.2s ease, opacity 0.2s ease;
-}
-
-.detail__cover-save {
-  background: var(--accent);
-  color: #fff;
-}
-
-.detail__cover-save:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.detail__cover-cancel,
-.detail__cover-remove {
-  background: var(--bg);
-  border: 1px solid var(--border-strong);
-  color: var(--text-secondary);
-}
-
-.detail__status-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.detail__order-actions {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr;
-  gap: 8px;
-}
-
-.order-btn {
-  padding: 12px 10px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-strong);
-  background: var(--bg-elevated);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  transition: all 0.25s ease;
-}
-
-.order-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.order-btn:not(:disabled):active {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.status-btn {
-  padding: 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-strong);
-  background: var(--bg-elevated);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  transition: all 0.3s cubic-bezier(0.34, 1.3, 0.64, 1);
-}
-
-.status-btn--on {
-  border-color: transparent;
-  transform: scale(1.02);
-  box-shadow: none;
-}
-
-.status-btn--on.status-btn--want {
-  background: var(--status-want-bg);
-  color: var(--status-want-fg);
-}
-
-.status-btn--on.status-btn--in_progress {
-  background: var(--status-progress-bg);
-  color: var(--status-progress-fg);
-}
-
-.status-btn--on.status-btn--completed {
-  background: var(--status-completed-bg);
-  color: var(--status-completed-fg);
-}
-
-.status-btn--on.status-btn--dropped {
-  background: var(--status-dropped-bg);
-  color: var(--status-dropped-fg);
-}
-
-.detail__notes {
-  width: 100%;
-  padding: 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  background: var(--bg-elevated);
-  font-size: 15px;
-  line-height: 1.5;
-  resize: vertical;
-  min-height: 100px;
-  box-shadow: var(--shadow-sm);
-  transition: border-color 0.25s ease, box-shadow 0.25s ease;
-}
-
-.detail__notes:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-
-.detail__remove {
-  width: 100%;
-  padding: 14px;
-  border-radius: var(--radius-md);
-  border: 1px solid rgba(220, 38, 38, 0.2);
-  color: #dc2626;
-  font-weight: 600;
-  font-size: 14px;
-  background: var(--bg-elevated);
-  transition: all 0.25s ease;
-}
-
-.detail__remove:active {
-  background: rgba(220, 38, 38, 0.06);
-}
-
-.detail__missing {
-  padding: 60px 20px;
-  text-align: center;
-  color: var(--text-secondary);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .detail__cover-wrap {
-    animation: none;
-  }
-
-  .status-btn--on {
-    transform: none;
-  }
 }
 </style>

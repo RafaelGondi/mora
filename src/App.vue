@@ -3,16 +3,17 @@ import { ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import AppShell from '@/components/layout/AppShell.vue'
 import { pageTransitionName } from '@/composables/useMotion'
+import { useAppTheme } from '@/composables/useAppTheme'
+
+useAppTheme()
 
 const route = useRoute()
 const transition = ref('page-fade')
-const previousPath = ref(route.path)
 
 watch(
   () => route.path,
   (to, from) => {
     if (from) transition.value = pageTransitionName(from, to)
-    previousPath.value = to
   },
 )
 </script>

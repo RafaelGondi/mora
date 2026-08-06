@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { AkButton, AkInput, AkSectionHeader, AkTextarea } from '@rafael_dias/akoma'
+import NativeField from '@/components/ui/NativeField.vue'
 import WhereToWatchSelect from '@/components/ui/WhereToWatchSelect.vue'
 import type { MediaType } from '@/types/media'
 import { CREATOR_LABELS, supportsDuration, supportsReadingDates, supportsWhereToWatch } from '@/types/media'
@@ -65,157 +67,85 @@ function handleSubmit() {
 </script>
 
 <template>
-  <form class="manual" @submit.prevent="handleSubmit">
-    <h3 class="manual__title">Cadastro manual</h3>
+  <form class="manual stack--md" @submit.prevent="handleSubmit">
+    <AkSectionHeader title="Cadastro manual" />
     <p class="manual__desc">Para itens sem API ou quando a busca não encontrar.</p>
 
-    <label class="manual__field">
-      <span>Título *</span>
-      <input v-model="title" type="text" required placeholder="Nome do item" />
-    </label>
+    <AkInput v-model="title" label="Título" required placeholder="Nome do item" />
 
-    <label class="manual__field">
-      <span>{{ creatorLabel }}</span>
-      <input v-model="creator" type="text" :placeholder="creatorLabel" />
-    </label>
+    <AkInput v-model="creator" :label="creatorLabel" :placeholder="creatorLabel" />
 
     <div v-if="showWhereToWatch" class="manual__field">
-      <span>Onde assistir</span>
+      <span class="manual__label">Onde assistir</span>
       <WhereToWatchSelect v-model="whereToWatch" />
     </div>
 
     <div class="manual__row">
-      <label class="manual__field">
-        <span>Ano</span>
-        <input v-model="year" type="text" inputmode="numeric" placeholder="2024" maxlength="4" />
-      </label>
-      <label v-if="showDuration" class="manual__field manual__field--grow">
-        <span>Duração (min)</span>
-        <input
-          v-model="durationMinutes"
-          type="text"
-          inputmode="numeric"
-          placeholder="142"
-          maxlength="4"
-        />
-      </label>
-      <label v-else class="manual__field manual__field--grow">
-        <span>URL da capa</span>
-        <input v-model="coverUrl" type="url" placeholder="https://..." />
-      </label>
+      <NativeField
+        v-model="year"
+        class="manual__year"
+        label="Ano"
+        inputmode="numeric"
+        placeholder="2024"
+        :maxlength="4"
+      />
+      <NativeField
+        v-if="showDuration"
+        v-model="durationMinutes"
+        class="flex-1"
+        label="Duração (min)"
+        inputmode="numeric"
+        placeholder="142"
+        :maxlength="4"
+      />
+      <AkInput v-else v-model="coverUrl" class="flex-1" label="URL da capa" type="url" placeholder="https://..." />
     </div>
 
-    <label v-if="showDuration" class="manual__field">
-      <span>URL da capa</span>
-      <input v-model="coverUrl" type="url" placeholder="https://..." />
-    </label>
+    <AkInput v-if="showDuration" v-model="coverUrl" label="URL da capa" type="url" placeholder="https://..." />
 
     <div v-if="showReadingDates" class="manual__row">
-      <label class="manual__field manual__field--grow">
-        <span>Início da leitura</span>
-        <input v-model="readingStartedAt" type="date" />
-      </label>
-      <label class="manual__field manual__field--grow">
-        <span>Fim da leitura</span>
-        <input v-model="readingFinishedAt" type="date" />
-      </label>
+      <NativeField v-model="readingStartedAt" class="flex-1" label="Início da leitura" type="date" />
+      <NativeField v-model="readingFinishedAt" class="flex-1" label="Fim da leitura" type="date" />
     </div>
 
-    <label class="manual__field">
-      <span>Descrição</span>
-      <textarea v-model="overview" rows="3" placeholder="Opcional" />
-    </label>
+    <AkTextarea v-model="overview" label="Descrição" :rows="3" placeholder="Opcional" />
 
-    <button class="manual__submit" type="submit" :disabled="!title.trim()">
+    <AkButton type="submit" block :disabled="!title.trim()">
       Adicionar à fila
-    </button>
+    </AkButton>
   </form>
 </template>
 
 <style scoped>
 .manual {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 20px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  margin-top: 8px;
-}
-
-.manual__title {
-  font-size: 18px;
+  padding-top: var(--space-2);
 }
 
 .manual__desc {
-  font-size: 13px;
+  margin-top: calc(var(--space-3) * -1);
+  font-size: var(--text-sm);
   color: var(--text-secondary);
-  margin-top: -6px;
 }
 
 .manual__field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
-.manual__field span {
-  font-size: 12px;
+.manual__label {
+  font-size: var(--text-xs);
   font-weight: 600;
-  color: var(--text-tertiary);
-}
-
-.manual__field input,
-.manual__field textarea {
-  padding: 12px 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--bg);
-  font-size: 15px;
-  color: var(--text);
-}
-
-.manual__field input:focus,
-.manual__field textarea:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  color: var(--text-secondary);
 }
 
 .manual__row {
   display: flex;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
-.manual__field--grow {
-  flex: 1;
-}
-
-.manual__row .manual__field:first-child {
+.manual__year {
   width: 96px;
   flex-shrink: 0;
-}
-
-.manual__submit {
-  padding: 14px;
-  background: var(--accent);
-  color: #fff;
-  border-radius: var(--radius-md);
-  font-weight: 600;
-  font-size: 15px;
-  box-shadow: var(--shadow-sm);
-  transition: background var(--transition), transform var(--transition);
-}
-
-.manual__submit:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.manual__submit:not(:disabled):active {
-  transform: scale(0.98);
-  background: var(--accent-hover);
 }
 </style>

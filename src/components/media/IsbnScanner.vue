@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
+import { AkButton, AkList, AkSectionHeader } from '@rafael_dias/akoma'
+import { useBacklogStore } from '@/stores/backlog'
 import { lookupBookByIsbn } from '@/services/api/books'
 import SearchResultCard from '@/components/media/SearchResultCard.vue'
 import LoadingShimmer from '@/components/ui/LoadingShimmer.vue'
+import NativeField from '@/components/ui/NativeField.vue'
 import { formatIsbn, normalizeIsbn } from '@/utils/isbn'
 import {
   createHtml5IsbnScanner,
@@ -18,6 +21,7 @@ import type { SearchResult } from '@/types/media'
 
 const emit = defineEmits<{ confirm: [result: SearchResult] }>()
 
+const store = useBacklogStore()
 const readerElementId = `isbn-barcode-reader-${Math.random().toString(36).slice(2, 9)}`
 const scanner = shallowRef<Html5Qrcode | null>(null)
 const scannerReady = ref(false)
@@ -212,10 +216,11 @@ onBeforeUnmount(() => {
 })
 </script>
 
+
 <template>
-  <section class="isbn">
-    <div class="isbn__header">
-      <h3 class="isbn__title">Scanner de ISBN</h3>
+  <section class="isbn stack--md">
+    <div>
+      <AkSectionHeader title="Scanner de ISBN" />
       <p class="isbn__desc">
         Alinhe o código de barras na área destacada ou fotografe o verso do livro.
       </p>
@@ -235,35 +240,21 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="isbn__actions">
-      <button
-        v-if="!scanning"
-        class="isbn__btn isbn__btn--primary tap-scale"
-        type="button"
-        @click="startScanner"
-      >
-        Abrir câmera
-      </button>
+      <AkButton v-if="!scanning" @click="startScanner">Abrir câmera</AkButton>
       <template v-else>
-        <button class="isbn__btn tap-scale" type="button" @click="stopScanner">Parar câmera</button>
-        <button
+        <AkButton variant="secondary" @click="stopScanner">Parar câmera</AkButton>
+        <AkButton
           v-if="canTorch"
-          class="isbn__btn tap-scale"
-          :class="{ 'isbn__btn--torch-on': torchOn }"
-          type="button"
+          :variant="torchOn ? 'primary' : 'secondary'"
           @click="handleTorchToggle"
         >
           {{ torchOn ? 'Lanterna ligada' : 'Lanterna' }}
-        </button>
+        </AkButton>
       </template>
 
-      <button
-        class="isbn__btn isbn__btn--photo tap-scale"
-        type="button"
-        :disabled="photoLoading"
-        @click="openPhotoCapture"
-      >
+      <AkButton variant="secondary" :loading="photoLoading" @click="openPhotoCapture">
         {{ photoLoading ? 'Lendo foto…' : 'Fotografar código' }}
-      </button>
+      </AkButton>
       <input
         ref="photoInputRef"
         class="isbn__photo-input"
@@ -275,204 +266,113 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="isbn__manual">
-      <label class="isbn__field">
-        <span>ISBN manual</span>
-        <input
-          v-model="isbnInput"
-          class="isbn__input"
-          type="text"
-          inputmode="numeric"
-          placeholder="9788535914849"
-          @keydown.enter.prevent="handleManualLookup"
-        />
-      </label>
-      <button class="isbn__btn isbn__btn--primary tap-scale" type="button" @click="handleManualLookup">
-        Buscar ISBN
-      </button>
+      <NativeField
+        v-model="isbnInput"
+        class="flex-1"
+        label="ISBN manual"
+        inputmode="numeric"
+        placeholder="9788535914849"
+        @keydown.enter.prevent="handleManualLookup"
+      />
+      <AkButton @click="handleManualLookup">Buscar</AkButton>
     </div>
 
     <p v-if="error" class="isbn__error">{{ error }}</p>
 
     <LoadingShimmer v-if="loading" />
 
-    <SearchResultCard
-      v-else-if="result"
-      :result="result"
-      :in-backlog="store.isInBacklog(result.externalId, result.type)"
-      @add="handleAdd"
-    />
+    <AkList v-else-if="result">
+      <SearchResultCard
+        :result="result"
+        :in-backlog="store.isInBacklog(result.externalId, result.type)"
+        @add="handleAdd"
+      />
+    </AkList>
   </section>
 </template>
 
 <style scoped>
-.isbn {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 20px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  margin-bottom: 20px;
-}
-
-.isbn__header {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.isbn__title {
-  font-size: 18px;
-}
-
 .isbn__desc {
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
-  line-height: 1.45;
 }
 
 .isbn__scanner {
   position: relative;
+  border-radius: var(--card-radius);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-soft);
   overflow: hidden;
-  border-radius: var(--radius-md);
-  border: 1px dashed var(--border-strong);
-  background: #111;
-  min-height: 260px;
+  min-height: 180px;
+  display: grid;
+  place-items: center;
 }
 
 .isbn__scanner--active {
-  border-style: solid;
-  border-color: var(--book);
+  border-color: var(--accent);
+  background: #000;
 }
 
 .isbn__reader {
   width: 100%;
-  min-height: 260px;
 }
 
 .isbn__reader :deep(video) {
   width: 100% !important;
-  height: min(52vh, 360px) !important;
-  object-fit: contain !important;
+  display: block;
+  border-radius: var(--card-radius);
 }
 
 .isbn__reader :deep(img) {
-  display: none !important;
+  display: none;
 }
 
 .isbn__placeholder {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
+  padding: var(--space-6) var(--space-5);
   text-align: center;
-  font-size: 13px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.72);
-  pointer-events: none;
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
 }
 
 .isbn__scanner-hint {
   position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 12px;
-  padding: 8px 10px;
+  bottom: var(--space-2);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-full);
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
-  font-size: 12px;
+  font-size: var(--text-2xs);
   font-weight: 600;
-  text-align: center;
-  pointer-events: none;
 }
 
-.isbn__actions,
-.isbn__manual {
+.isbn__actions {
   display: flex;
-  gap: 10px;
-  align-items: end;
   flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.isbn__actions > * {
+  flex: 1 1 auto;
 }
 
 .isbn__photo-input {
   display: none;
 }
 
-.isbn__field {
-  flex: 1;
-  min-width: 180px;
+.isbn__manual {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.isbn__field span {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-tertiary);
-}
-
-.isbn__input {
-  width: 100%;
-  padding: 12px 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--bg);
-  font-size: 15px;
-  color: var(--text);
-}
-
-.isbn__input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-
-.isbn__btn {
-  padding: 12px 16px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-strong);
-  background: var(--bg);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
-.isbn__btn:disabled {
-  opacity: 0.6;
-}
-
-.isbn__btn--primary {
-  background: var(--book);
-  border-color: transparent;
-  color: #fff;
-}
-
-.isbn__btn--photo {
-  background: rgba(196, 146, 58, 0.12);
-  border-color: rgba(196, 146, 58, 0.28);
-  color: var(--book);
-}
-
-.isbn__btn--torch-on {
-  background: rgba(196, 146, 58, 0.16);
-  border-color: rgba(196, 146, 58, 0.35);
-  color: var(--book);
+  align-items: flex-end;
+  gap: var(--space-2);
 }
 
 .isbn__error {
-  padding: 12px 14px;
-  border-radius: var(--radius-sm);
-  background: rgba(91, 76, 219, 0.08);
-  border: 1px solid rgba(91, 76, 219, 0.16);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--accent);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--card-radius);
+  background: var(--danger-soft);
+  border: 1px solid color-mix(in srgb, var(--danger) 20%, transparent);
+  color: var(--danger);
+  font-size: var(--text-sm);
 }
 </style>

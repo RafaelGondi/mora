@@ -1,3 +1,4 @@
+import path from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
 
 import { defineConfig } from 'vite'
@@ -17,8 +18,8 @@ export default defineConfig({
         name: 'Mora — Gestão de Backlog',
         short_name: 'Mora',
         description: 'Organize sua fila de filmes, séries, livros, jogos, álbuns e mais.',
-        theme_color: '#f6f5f2',
-        background_color: '#f6f5f2',
+        theme_color: '#f8f6f1',
+        background_color: '#f8f6f1',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
@@ -92,6 +93,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // Cuida ships a broken `main`; point at the real ESM build.
+      '@sysvale/cuida-icons': path.resolve(
+        fileURLToPath(new URL('.', import.meta.url)),
+        'node_modules/@sysvale/cuida-icons/dist/index.js',
+      ),
     },
   },
 })

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { AkButton, AkEmptyState, AkIcon, AkList, AkProgress, AkSectionHeader } from '@rafael_dias/akoma'
 import { useBacklogStore } from '@/stores/backlog'
 import MediaCard from '@/components/media/MediaCard.vue'
-import EmptyState from '@/components/ui/EmptyState.vue'
 import { useCountUp } from '@/composables/useMotion'
-import { TYPE_LABELS } from '@/types/media'
-import type { BacklogStatus, MediaType } from '@/types/media'
+import { MEDIA_TYPES, TYPE_COLORS, TYPE_LABELS } from '@/types/media'
+import type { BacklogStatus } from '@/types/media'
 
 const store = useBacklogStore()
 const router = useRouter()
@@ -26,15 +26,18 @@ const statusCards = computed(() =>
 )
 
 function goToStatus(status: BacklogStatus) {
-  router.push({ path: '/backlog', query: { status } })
+  void router.push({ path: '/backlog', query: { status } })
 }
 
 const { display: totalDisplay, animate: animateTotal } = useCountUp(() => store.totalCount)
 
 const typeBreakdown = computed(() =>
-  (['movie', 'series', 'book', 'game', 'album', 'other'] as MediaType[])
-    .map((type) => ({ type, label: TYPE_LABELS[type], count: store.byType[type] }))
-    .filter((t) => t.count > 0),
+  MEDIA_TYPES.map((type) => ({
+    type,
+    label: TYPE_LABELS[type],
+    color: TYPE_COLORS[type],
+    count: store.byType[type],
+  })).filter((t) => t.count > 0),
 )
 
 onMounted(() => animateTotal())
@@ -42,280 +45,168 @@ watch(() => store.totalCount, () => animateTotal())
 </script>
 
 <template>
-  <div class="home">
-    <header class="home__header reveal">
-      <span class="page-label">Sua coleção</span>
-      <h1 class="page-title">
-        Mora<span class="home__dot" aria-hidden="true">.</span>
-      </h1>
-      <p class="home__tagline">Tudo que você quer ver, ler, jogar ou ouvir.</p>
-    </header>
+  <div class="ak-app-page ak-app-scroll">
+    <div class="page-body stack--lg">
+      <header class="reveal">
+        <span class="page-label">Sua coleção</span>
+        <h1 class="page-title">Mora</h1>
+        <p class="home__tagline">Tudo que você quer ver, ler, jogar ou ouvir.</p>
+      </header>
 
-    <section class="summary reveal reveal-d1" aria-label="Resumo">
-      <div class="summary__hero">
-        <span class="summary__num">{{ totalDisplay }}</span>
-        <span class="summary__label">na fila</span>
-      </div>
-      <div class="summary__stats">
-        <button
-          v-for="card in statusCards"
-          :key="card.status"
-          class="summary__stat tap-scale"
-          type="button"
-          @click="goToStatus(card.status)"
-        >
-          <span class="summary__stat-val">{{ card.value }}</span>
-          <span class="summary__stat-lbl">{{ card.label }}</span>
-        </button>
-      </div>
-    </section>
-
-    <div v-if="typeBreakdown.length" class="types reveal reveal-d2">
-      <div v-for="t in typeBreakdown" :key="t.type" class="types__row">
-        <span class="types__dot" :class="`types__dot--${t.type}`" />
-        <span class="types__name">{{ t.label }}</span>
-        <div class="types__track">
-          <div
-            class="types__fill"
-            :class="`types__fill--${t.type}`"
-            :style="{ width: `${(t.count / store.totalCount) * 100}%` }"
-          />
+      <section class="reveal reveal-d1" aria-label="Resumo">
+        <div class="home__total">
+          <span class="home__total-num numeric">{{ totalDisplay }}</span>
+          <span class="home__total-lbl">na fila</span>
         </div>
-        <span class="types__count">{{ t.count }}</span>
-      </div>
-    </div>
 
-    <section class="recent reveal reveal-d3">
-      <div class="section-head">
-        <h2>Recentes</h2>
-        <button
-          v-if="store.recentItems.length"
-          class="section-head__link tap-scale"
-          type="button"
-          @click="router.push('/backlog')"
+        <div class="stats-grid">
+          <button
+            v-for="card in statusCards"
+            :key="card.status"
+            class="stat-cell tap-scale"
+            type="button"
+            @click="goToStatus(card.status)"
+          >
+            <span class="stat-cell__value numeric">{{ card.value }}</span>
+            <span class="stat-cell__label">{{ card.label }}</span>
+          </button>
+        </div>
+      </section>
+
+      <section v-if="typeBreakdown.length" class="reveal reveal-d2 stack">
+        <AkSectionHeader title="Por categoria" />
+        <div
+          v-for="t in typeBreakdown"
+          :key="t.type"
+          class="type-row"
         >
-          Ver tudo →
-        </button>
-      </div>
+          <span class="type-row__name">{{ t.label }}</span>
+          <AkProgress
+            class="type-row__bar"
+            :value="t.count"
+            :max="store.totalCount"
+            :color="t.color"
+            size="sm"
+          />
+          <span class="type-row__count numeric">{{ t.count }}</span>
+        </div>
+      </section>
 
-      <EmptyState
-        v-if="!store.recentItems.length"
-        title="Fila vazia"
-        description="Busque mídias ou cadastre manualmente para começar."
-        action-label="Começar a buscar"
-        @action="router.push('/search')"
-      />
+      <section class="reveal reveal-d3">
+        <AkSectionHeader title="Recentes">
+          <template v-if="store.recentItems.length" #action>
+            <AkButton variant="ghost" size="sm" @click="router.push('/backlog')">
+              Ver tudo
+            </AkButton>
+          </template>
+        </AkSectionHeader>
 
-      <div v-else class="recent__list">
-        <MediaCard
-          v-for="item in store.recentItems"
-          :key="item.id"
-          :item="item"
-          variant="row"
-        />
-      </div>
-    </section>
+        <AkEmptyState
+          v-if="!store.recentItems.length"
+          title="Fila vazia"
+          description="Busque mídias ou cadastre manualmente para começar."
+        >
+          <template #icon>
+            <AkIcon name="bullet-list-outline" :size="24" />
+          </template>
+          <template #action>
+            <AkButton @click="router.push('/search')">Começar a buscar</AkButton>
+          </template>
+        </AkEmptyState>
+
+        <AkList v-else>
+          <MediaCard
+            v-for="(item, i) in store.recentItems"
+            :key="item.id"
+            :item="item"
+            :divider="i < store.recentItems.length - 1"
+          />
+        </AkList>
+      </section>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.home {
-  padding: calc(28px + var(--safe-top)) 20px 24px;
-}
-
-.home__header {
-  margin-bottom: 28px;
-}
-
-.home__header .page-label {
-  display: block;
-  margin-bottom: 4px;
-}
-
-.home__dot {
-  color: var(--accent);
-  animation: dot-pulse 2.5s ease-in-out infinite;
-}
-
-@keyframes dot-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
-}
-
 .home__tagline {
-  margin-top: 8px;
-  font-size: 15px;
+  margin-top: var(--space-2);
+  font-size: var(--text-md);
   color: var(--text-secondary);
-  line-height: 1.5;
 }
 
-.summary {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 24px;
-  background: var(--bg-elevated);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
-  margin-bottom: 20px;
-}
-
-.summary__hero {
+.home__total {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
 }
 
-.summary__num {
+.home__total-num {
   font-family: var(--font-display);
-  font-size: 52px;
+  font-size: 44px;
   font-weight: 700;
+  letter-spacing: -0.03em;
   line-height: 1;
-  letter-spacing: -0.04em;
   color: var(--accent);
-  font-variant-numeric: tabular-nums;
 }
 
-.summary__label {
-  font-size: 15px;
-  font-weight: 500;
+.home__total-lbl {
+  font-size: var(--text-md);
   color: var(--text-secondary);
 }
 
-.summary__stats {
-  display: flex;
-  gap: 12px;
-}
-
-.summary__stat {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 12px;
-  background: var(--bg);
-  border-radius: var(--radius-md);
-  border: none;
-  text-align: left;
-  cursor: pointer;
-  transition: transform 0.25s cubic-bezier(0.34, 1.2, 0.64, 1);
-}
-
-.summary__stat:active {
-  transform: scale(0.97);
-}
-
-.summary__stat-val {
-  font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
-.summary__stat-lbl {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-tertiary);
-}
-
-.types {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 32px;
-}
-
-.types__row {
+/* Flat stat band — borders instead of elevation (patterns.md). */
+.stats-grid {
   display: grid;
-  grid-template-columns: 8px 52px 1fr 24px;
-  align-items: center;
-  gap: 10px;
+  grid-template-columns: repeat(3, 1fr);
+  border-block: 1px solid var(--border);
 }
 
-.types__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+.stat-cell {
+  padding: var(--space-4) var(--space-2);
+  text-align: center;
+  background: transparent;
+  border: 0;
 }
 
-.types__dot--movie { background: var(--movie); }
-.types__dot--series { background: var(--series); }
-.types__dot--book { background: var(--book); }
-.types__dot--game { background: var(--game); }
-.types__dot--album { background: var(--album); }
-.types__dot--other { background: var(--other); }
+.stat-cell:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
 
-.types__name {
-  font-size: 12px;
-  font-weight: 600;
+.stat-cell__value {
+  display: block;
+  font-size: var(--text-2xl);
+  font-weight: 650;
+}
+
+.stat-cell__label {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--text-2xs);
   color: var(--text-secondary);
 }
 
-.types__track {
-  height: 6px;
-  background: var(--bg-muted);
-  border-radius: var(--radius-full);
-  overflow: hidden;
+.type-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 
-.types__fill {
-  height: 100%;
-  border-radius: var(--radius-full);
-  min-width: 4px;
-  transition: width 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+.type-row__name {
+  width: 68px;
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
 }
 
-.types__fill--movie { background: var(--movie); }
-.types__fill--series { background: var(--series); }
-.types__fill--book { background: var(--book); }
-.types__fill--game { background: var(--game); }
-.types__fill--album { background: var(--album); }
-.types__fill--other { background: var(--other); }
+.type-row__bar {
+  flex: 1;
+}
 
-.types__count {
-  font-size: 13px;
-  font-weight: 600;
+.type-row__count {
+  width: 24px;
   text-align: right;
-  color: var(--text-tertiary);
-}
-
-.section-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 16px;
-}
-
-.section-head h2 {
-  font-size: 20px;
-}
-
-.section-head__link {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--accent);
-}
-
-.recent__list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-}
-
-.recent__list :deep(.card--row) {
-  width: 100%;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .home__dot {
-    animation: none;
-  }
-
-  .types__fill {
-    transition: none;
-  }
+  font-size: var(--text-sm);
+  font-weight: 650;
 }
 </style>
