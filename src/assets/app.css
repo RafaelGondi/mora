@@ -101,6 +101,17 @@
   text-transform: uppercase;
 }
 
+/* Cuida icons are authored with fill-rule="evenodd", but Akoma's icon
+ * normaliser rebuilds a flat <svg> from the <path> elements alone. Icons that
+ * carry the rule on the wrapping <g> (72 of 182, e.g. search-outline) lose it
+ * and fill their holes — a ring becomes a solid disc. CSS beats presentation
+ * attributes, so restoring it here fixes every affected icon at once.
+ * Remove once the normaliser preserves the rule upstream. */
+.ak-icon svg {
+  fill-rule: evenodd;
+  clip-rule: evenodd;
+}
+
 /* Sheet body — AkSheet ships the chrome, the app pads its own content. */
 .sheet-body {
   display: flex;
