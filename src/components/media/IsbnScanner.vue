@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
-import { useBacklogStore } from '@/stores/backlog'
 import { lookupBookByIsbn } from '@/services/api/books'
 import SearchResultCard from '@/components/media/SearchResultCard.vue'
 import LoadingShimmer from '@/components/ui/LoadingShimmer.vue'
@@ -17,9 +16,8 @@ import {
 import type { Html5Qrcode } from 'html5-qrcode'
 import type { SearchResult } from '@/types/media'
 
-const emit = defineEmits<{ added: [] }>()
+const emit = defineEmits<{ confirm: [result: SearchResult] }>()
 
-const store = useBacklogStore()
 const readerElementId = `isbn-barcode-reader-${Math.random().toString(36).slice(2, 9)}`
 const scanner = shallowRef<Html5Qrcode | null>(null)
 const scannerReady = ref(false)
@@ -191,8 +189,7 @@ function handleManualLookup() {
 
 function handleAdd() {
   if (!result.value) return
-  store.addFromSearch(result.value)
-  emit('added')
+  emit('confirm', result.value)
   result.value = null
   lastIsbn.value = null
   isbnInput.value = ''
