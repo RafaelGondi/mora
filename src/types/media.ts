@@ -102,6 +102,14 @@ export const STATUS_VARIANTS: Record<BacklogStatus, BadgeVariant> = {
   dropped: 'danger',
 }
 
+/** Status is system state — semantic tokens, not the `--cat-*` entity scale. */
+export const STATUS_COLORS: Record<BacklogStatus, string> = {
+  want: 'var(--accent)',
+  in_progress: 'var(--info)',
+  completed: 'var(--success)',
+  dropped: 'var(--danger)',
+}
+
 export const STATUS_LABELS: Record<BacklogStatus, string> = {
   want: 'Quero ver',
   in_progress: 'Em andamento',

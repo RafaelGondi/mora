@@ -1,13 +1,23 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import draggable from 'vuedraggable'
-import { AkButton, AkChip, AkEmptyState, AkIcon, AkIconButton, AkInput, AkList, AkPageHeader } from '@rafael_dias/akoma'
+import {
+  AkButton,
+  AkChip,
+  AkEmptyState,
+  AkIcon,
+  AkIconButton,
+  AkInput,
+  AkList,
+  AkListRow,
+  AkPageHeader,
+  AkSheet,
+} from '@rafael_dias/akoma'
 import { useBacklogStore } from '@/stores/backlog'
-import MediaCard from '@/components/media/MediaCard.vue'
-import CategoryPill from '@/components/ui/CategoryPill.vue'
+import MediaTile from '@/components/media/MediaTile.vue'
 import { haptic } from '@/utils/haptic'
-import { MEDIA_TYPES, STATUS_OPTIONS, STATUS_VARIANTS, TYPE_LABELS } from '@/types/media'
+import { MEDIA_TYPES, STATUS_OPTIONS, TYPE_COLORS, TYPE_LABELS } from '@/types/media'
 import type { BacklogStatus, BacklogItem, MediaType } from '@/types/media'
 
 type DragIndexEvent = {
@@ -22,6 +32,10 @@ const route = useRoute()
 const filterType = ref<MediaType>('movie')
 const filterStatus = ref<BacklogStatus | null>(null)
 const filterCreator = ref('')
+
+const typeSheetOpen = ref(false)
+const searchOpen = ref(false)
+const searchAnchor = ref<HTMLElement | null>(null)
 
 const STATUS_VALUES = STATUS_OPTIONS.map((s) => s.value)
 
@@ -64,6 +78,7 @@ watch(
   () => route.query.creator,
   (value) => {
     filterCreator.value = typeof value === 'string' ? value : ''
+    if (filterCreator.value) searchOpen.value = true
   },
   { immediate: true },
 )
@@ -93,6 +108,12 @@ watch(filterStatus, (value) => {
   syncRouteFromFilters()
 })
 
+watch(searchOpen, async (open) => {
+  if (!open) return
+  await nextTick()
+  searchAnchor.value?.querySelector('input')?.focus()
+})
+
 const creatorSuggestions = computed(() => {
   const query = filterCreator.value.trim().toLowerCase()
   const creators = store.uniqueCreatorsFor(filterType.value, filterStatus.value)
@@ -106,7 +127,8 @@ const filtered = computed(() =>
 
 const typeCount = computed(() => store.countForType(filterType.value, filterStatus.value))
 
-const canReorder = computed(() => !filterStatus.value && !filterCreator.value.trim())
+const isFiltered = computed(() => Boolean(filterStatus.value || filterCreator.value.trim()))
+const canReorder = computed(() => !isFiltered.value)
 
 const dragList = ref<BacklogItem[]>([])
 const suppressCardClick = ref(false)
@@ -119,13 +141,13 @@ let settleTimer: ReturnType<typeof setTimeout> | undefined
 const dragOptions = {
   animation: 260,
   easing: 'cubic-bezier(0.34, 1.2, 0.64, 1)',
-  delay: 120,
+  delay: 160,
   delayOnTouchOnly: true,
   distance: 10,
   touchStartThreshold: 8,
-  ghostClass: 'backlog__ghost',
-  chosenClass: 'backlog__chosen',
-  dragClass: 'backlog__drag',
+  ghostClass: 'shelf__ghost',
+  chosenClass: 'shelf__chosen',
+  dragClass: 'shelf__drag',
   emptyInsertThreshold: 8,
 }
 
@@ -192,44 +214,57 @@ function onDragEnd(evt: DragIndexEvent) {
 }
 
 function applyCreator(name: string) {
-  filterCreator.value = name
+  filterCreator.value = filterCreator.value === name ? '' : name
 }
 
-function clearCreator() {
+function closeSearch() {
   filterCreator.value = ''
+  searchOpen.value = false
+}
+
+function selectType(type: MediaType) {
+  filterType.value = type
+  typeSheetOpen.value = false
 }
 </script>
 
 <template>
   <div class="ak-app-page ak-app-scroll">
     <div class="page-body stack--lg">
-      <AkPageHeader
-        label="Coleção"
-        title="Fila"
-        :meta="`${filtered.length} de ${typeCount} na fila de ${TYPE_LABELS[filterType]}`"
-        variant="flush"
-      />
-
-      <section class="stack">
-        <div class="backlog__search-row">
-          <AkInput
-            v-model="filterCreator"
-            class="flex-1"
-            label="Diretor, autor, artista…"
-            placeholder="Ex.: Juan Rulfo, Nolan…"
-            type="search"
-            autocomplete="off"
-          />
+      <AkPageHeader label="Coleção" title="Fila" variant="flush">
+        <template #actions>
           <AkIconButton
-            v-if="filterCreator"
-            class="backlog__clear"
             variant="ghost"
-            label="Limpar busca"
-            icon="x-outline"
-            @click="clearCreator"
+            :label="searchOpen ? 'Fechar busca' : 'Buscar por autor'"
+            :icon="searchOpen ? 'x-outline' : 'search-outline'"
+            @click="searchOpen ? closeSearch() : (searchOpen = true)"
           />
-        </div>
+        </template>
+      </AkPageHeader>
 
+      <!-- Shelf bar: which category you're looking at, and how deep it is. -->
+      <div class="shelf-bar">
+        <button class="shelf-bar__pick" type="button" @click="typeSheetOpen = true">
+          <span class="shelf-bar__name">{{ TYPE_LABELS[filterType] }}</span>
+          <span class="shelf-bar__change">
+            Mudar categoria
+            <AkIcon name="caret-down-outline" :size="14" />
+          </span>
+        </button>
+        <div class="shelf-bar__stat">
+          <span class="shelf-bar__stat-label">Na fila</span>
+          <span class="shelf-bar__stat-value numeric">{{ typeCount }}</span>
+        </div>
+      </div>
+
+      <section v-if="searchOpen" ref="searchAnchor" class="stack">
+        <AkInput
+          v-model="filterCreator"
+          label="Diretor, autor, artista…"
+          placeholder="Ex.: Juan Rulfo, Nolan…"
+          type="search"
+          autocomplete="off"
+        />
         <div v-if="creatorSuggestions.length" class="chip-row">
           <AkChip
             v-for="name in creatorSuggestions"
@@ -242,29 +277,16 @@ function clearCreator() {
         </div>
       </section>
 
-      <section class="stack">
-        <div class="chip-row">
-          <CategoryPill
-            v-for="type in MEDIA_TYPES"
-            :key="type"
-            :type="type"
-            :active="filterType === type"
-            @click="filterType = type"
-          />
-        </div>
-
-        <div class="chip-row">
-          <AkChip
-            v-for="s in STATUS_OPTIONS"
-            :key="s.value"
-            :active="filterStatus === s.value"
-            :color="`var(--${STATUS_VARIANTS[s.value] === 'accent' ? 'accent' : STATUS_VARIANTS[s.value]})`"
-            @click="filterStatus = filterStatus === s.value ? null : s.value"
-          >
-            {{ s.label }}
-          </AkChip>
-        </div>
-      </section>
+      <div class="chip-row">
+        <AkChip
+          v-for="s in STATUS_OPTIONS"
+          :key="s.value"
+          :active="filterStatus === s.value"
+          @click="filterStatus = filterStatus === s.value ? null : s.value"
+        >
+          {{ s.label }}
+        </AkChip>
+      </div>
 
       <AkEmptyState
         v-if="!filtered.length"
@@ -276,7 +298,7 @@ function clearCreator() {
         "
       >
         <template #icon>
-          <AkIcon name="bullet-list-outline" :size="24" />
+          <AkIcon name="grid-outline" :size="24" />
         </template>
         <template v-if="!store.totalCount" #action>
           <AkButton @click="router.push('/search')">Buscar mídias</AkButton>
@@ -284,72 +306,157 @@ function clearCreator() {
       </AkEmptyState>
 
       <template v-else>
-        <p class="backlog__hint">
+        <p class="shelf-hint">
           <AkIcon
-            :name="canReorder ? 'swap-vertical-arrows-outline' : 'filter-outline'"
+            :name="canReorder ? 'swap-vertical-arrows-outline' : 'funnel-outline'"
             :size="14"
           />
           {{
             canReorder
               ? 'Segure um instante e arraste para reorganizar.'
-              : 'Limpe os filtros para reorganizar a fila.'
+              : `${filtered.length} de ${typeCount} — limpe os filtros para reorganizar.`
           }}
         </p>
 
-        <AkList v-if="canReorder">
-          <draggable
-            :key="filterType"
-            v-model="dragList"
-            item-key="id"
-            v-bind="dragOptions"
-            class="backlog__list"
-            :class="{ 'backlog__list--dragging': isDragging }"
-            @choose="onChoose"
-            @unchoose="onUnchoose"
-            @start="onDragStart"
-            @end="onDragEnd"
-          >
-            <template #item="{ element, index }">
-              <div
-                class="backlog__item"
-                :class="{
-                  'backlog__item--pressing': pressingId === element.id,
-                  'backlog__item--settled': settledId === element.id,
-                }"
-              >
-                <MediaCard
-                  :item="element"
-                  reorderable
-                  :drag-active="isDragging"
-                  :suppress-click="suppressCardClick"
-                  :divider="index < dragList.length - 1"
-                />
-              </div>
-            </template>
-          </draggable>
-        </AkList>
+        <draggable
+          v-if="canReorder"
+          :key="filterType"
+          v-model="dragList"
+          item-key="id"
+          v-bind="dragOptions"
+          class="shelf-grid"
+          :class="{ 'shelf-grid--dragging': isDragging }"
+          @choose="onChoose"
+          @unchoose="onUnchoose"
+          @start="onDragStart"
+          @end="onDragEnd"
+        >
+          <template #item="{ element }">
+            <div
+              class="shelf-cell"
+              :class="{
+                'shelf-cell--pressing': pressingId === element.id,
+                'shelf-cell--settled': settledId === element.id,
+              }"
+            >
+              <MediaTile :item="element" :suppress-click="suppressCardClick" />
+            </div>
+          </template>
+        </draggable>
 
-        <AkList v-else :key="`static-${filterType}`">
-          <MediaCard
-            v-for="(item, i) in filtered"
-            :key="item.id"
-            :item="item"
-            :divider="i < filtered.length - 1"
-          />
-        </AkList>
+        <div v-else :key="`static-${filterType}`" class="shelf-grid">
+          <MediaTile v-for="item in filtered" :key="item.id" :item="item" />
+        </div>
       </template>
     </div>
+
+    <AkSheet v-model:open="typeSheetOpen" title="Mudar categoria" close-label="Fechar">
+      <div class="sheet-body">
+        <AkList>
+          <AkListRow
+            v-for="(type, i) in MEDIA_TYPES"
+            :key="type"
+            interactive
+            :divider="i < MEDIA_TYPES.length - 1"
+            @click="selectType(type)"
+          >
+            <template #leading>
+              <span class="type-dot" :style="{ background: TYPE_COLORS[type] }" />
+            </template>
+            <span class="row-title">{{ TYPE_LABELS[type] }}</span>
+            <template #subtitle>
+              <span class="text-xs text-muted">
+                {{ store.countForType(type, filterStatus) }} na fila
+              </span>
+            </template>
+            <template #trailing>
+              <AkIcon
+                v-if="filterType === type"
+                name="check-outline"
+                :size="18"
+                class="text-accent"
+              />
+            </template>
+          </AkListRow>
+        </AkList>
+      </div>
+    </AkSheet>
   </div>
 </template>
 
 <style scoped>
-.backlog__search-row {
+/* Shelf bar — a control, so a soft surface is fine; still no elevation. */
+.shelf-bar {
   display: flex;
-  align-items: flex-end;
-  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--card-radius);
+  background: var(--bg-soft);
 }
 
-.backlog__hint {
+.shelf-bar__pick {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.shelf-bar__pick:focus-visible {
+  outline: none;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--focus-ring);
+}
+
+.shelf-bar__name {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.shelf-bar__change {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.shelf-bar__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.shelf-bar__stat-label {
+  font-size: var(--text-2xs);
+  color: var(--text-secondary);
+}
+
+.shelf-bar__stat-value {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.type-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  display: block;
+}
+
+.shelf-hint {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -358,50 +465,50 @@ function clearCreator() {
   color: var(--text-tertiary);
 }
 
-/* Drag affordances — accent-tinted, no elevation (patterns.md). */
-.backlog__list--dragging > .backlog__item:not(.backlog__ghost):not(.backlog__drag) {
+/* Three across reads well at phone widths and scales to big backlogs. */
+.shelf-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-5) var(--space-3);
+}
+
+@media (min-width: 420px) {
+  .shelf-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Drag affordances — tint the cell, never lift it. */
+.shelf-grid--dragging .shelf-cell:not(.shelf__ghost):not(.shelf__drag) {
   opacity: 0.55;
 }
 
-.backlog__list--dragging > .backlog__item.backlog__chosen:not(.backlog__ghost):not(.backlog__drag) {
+.shelf-grid--dragging .shelf-cell.shelf__chosen:not(.shelf__ghost):not(.shelf__drag) {
   opacity: 0 !important;
   pointer-events: none;
 }
 
-.backlog__item--pressing :deep(.ak-list-row) {
-  transform: scale(0.985);
-  background: var(--accent-soft);
-  border-radius: var(--radius-md);
-  transition:
-    transform 0.16s var(--ease-spring),
-    background 0.16s var(--ease-smooth);
+.shelf-cell--pressing :deep(.tile__cover) {
+  transform: scale(0.95);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-radius: var(--cover-radius);
 }
 
-.backlog__item--settled :deep(.ak-list-row) {
-  animation: backlog-settle 0.52s var(--ease-spring);
+.shelf-cell--settled :deep(.tile__cover) {
+  animation: shelf-settle 0.52s var(--ease-spring);
 }
 
-@keyframes backlog-settle {
-  0% {
-    transform: scale(1.025);
-    background: var(--accent-soft);
-  }
-  55% {
-    transform: scale(0.995);
-  }
-  100% {
-    transform: scale(1);
-    background: transparent;
-  }
+@keyframes shelf-settle {
+  0% { transform: scale(1.06); }
+  55% { transform: scale(0.98); }
+  100% { transform: scale(1); }
 }
 
-.backlog__list :deep(.backlog__ghost .ak-list-row) {
+.shelf-grid :deep(.shelf__ghost .tile__hit) {
   opacity: 0;
 }
 
-.backlog__list :deep(.backlog__ghost) {
-  position: relative;
-  min-height: 80px;
+.shelf-grid :deep(.shelf__ghost) {
   border-radius: var(--radius-md);
   background: var(--accent-soft);
   outline: 2px dashed color-mix(in srgb, var(--accent) 45%, transparent);
@@ -409,15 +516,13 @@ function clearCreator() {
   opacity: 1 !important;
 }
 
-.backlog__list :deep(.backlog__drag) {
-  border-radius: var(--radius-md);
-  background: var(--bg-elevated);
-  box-shadow: var(--shadow-md);
+.shelf-grid :deep(.shelf__drag) {
+  opacity: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .backlog__item--pressing :deep(.ak-list-row),
-  .backlog__item--settled :deep(.ak-list-row) {
+  .shelf-cell--pressing :deep(.tile__cover),
+  .shelf-cell--settled :deep(.tile__cover) {
     transition: none;
     animation: none;
   }
