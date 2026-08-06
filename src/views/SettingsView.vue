@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { AkBadge, AkIcon, AkList, AkListRow, AkPageHeader, AkSectionHeader, AkSwitch } from '@rafael_dias/akoma'
+import { AkBadge, AkButton, AkIcon, AkList, AkListRow, AkPageHeader, AkSectionHeader, AkSwitch } from '@rafael_dias/akoma'
 import { useBacklogStore } from '@/stores/backlog'
 import { useAppTheme } from '@/composables/useAppTheme'
 import { isFirebaseConfigured } from '@/lib/firebase'
+
+const isDev = import.meta.env.DEV
 
 const { mode, setMode } = useAppTheme()
 const backlog = useBacklogStore()
@@ -38,6 +40,11 @@ const syncVariant = computed(() => {
       return 'neutral' as const
   }
 })
+
+function toggleSampleData() {
+  if (backlog.hasSampleData) backlog.clearSampleData()
+  else void backlog.loadSampleData()
+}
 
 const syncHint = computed(() => {
   if (!isFirebaseConfigured()) {
@@ -95,6 +102,30 @@ const syncHint = computed(() => {
               <span class="numeric text-xs text-muted">
                 {{ backlog.firebaseUid.slice(0, 8) }}…
               </span>
+            </template>
+          </AkListRow>
+        </AkList>
+      </section>
+
+      <section v-if="isDev">
+        <AkSectionHeader title="Desenvolvimento" />
+        <AkList>
+          <AkListRow :divider="false">
+            <span class="row-title">Dados de exemplo</span>
+            <template #subtitle>
+              <p class="settings__hint">
+                Itens reais das APIs, cobrindo as seis categorias e todos os status.
+                Não mexe no que você cadastrou.
+              </p>
+            </template>
+            <template #trailing>
+              <AkButton
+                :variant="backlog.hasSampleData ? 'danger' : 'secondary'"
+                size="sm"
+                @click="toggleSampleData"
+              >
+                {{ backlog.hasSampleData ? 'Remover' : 'Carregar' }}
+              </AkButton>
             </template>
           </AkListRow>
         </AkList>

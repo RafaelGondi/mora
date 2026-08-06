@@ -410,6 +410,23 @@ export const useBacklogStore = defineStore('backlog', () => {
     }
   }
 
+  /** Single write for the "edit details" form — title, creator and year. */
+  function updateDetails(
+    id: string,
+    details: { title?: string; creator?: string; year?: string },
+  ) {
+    const item = items.value.find((i) => i.id === id)
+    if (!item) return
+
+    const title = details.title?.trim()
+    if (title) item.title = title
+    if (details.creator !== undefined) item.creator = details.creator.trim() || undefined
+    if (details.year !== undefined) item.year = details.year.trim() || undefined
+
+    item.updatedAt = new Date().toISOString()
+    void persistItem(item)
+  }
+
   function updateWhereToWatch(id: string, whereToWatch: string[]) {
     const item = items.value.find((i) => i.id === id)
     if (item) {
@@ -573,6 +590,38 @@ export const useBacklogStore = defineStore('backlog', () => {
     [...items.value].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 6),
   )
 
+  /* Dev fixtures. The prefix is duplicated from @/dev/sampleBacklog on purpose:
+   * importing it statically would pull the whole fixture set into the
+   * production bundle. The module is only ever dynamically imported, below. */
+  const SAMPLE_ID_PREFIX = 'sample-'
+  const isSample = (item: Pick<BacklogItem, 'id'>) => item.id.startsWith(SAMPLE_ID_PREFIX)
+
+  const hasSampleData = computed(() => items.value.some(isSample))
+
+  /** Idempotent, and never touches items you added yourself. Dev only. */
+  async function loadSampleData() {
+    if (!import.meta.env.DEV) return 0
+
+    const { SAMPLE_ITEMS } = await import('@/dev/sampleBacklog')
+    const present = new Set(items.value.map((item) => item.id))
+    const missing = SAMPLE_ITEMS.filter((item) => !present.has(item.id))
+    if (missing.length === 0) return 0
+
+    items.value = [...items.value, ...missing.map((item) => ({ ...item }))]
+    for (const item of missing) void persistItem(item)
+    return missing.length
+  }
+
+  function clearSampleData() {
+    const doomed = items.value.filter(isSample)
+    if (doomed.length === 0) return 0
+
+    items.value = items.value.filter((item) => !isSample(item))
+    cacheItems(items.value)
+    for (const item of doomed) void persistRemove(item.id)
+    return doomed.length
+  }
+
   return {
     items,
     orderedItems,
@@ -593,6 +642,7 @@ export const useBacklogStore = defineStore('backlog', () => {
     updateUserRating,
     updateCoverUrl,
     updateCreator,
+    updateDetails,
     updateWhereToWatch,
     updateDurationMinutes,
     updateReadingStartedAt,
@@ -606,5 +656,8 @@ export const useBacklogStore = defineStore('backlog', () => {
     getItem,
     filteredItems,
     countForType,
+    hasSampleData,
+    loadSampleData,
+    clearSampleData,
   }
 })

@@ -49,8 +49,27 @@ function updateNotes(value: string) {
   if (item.value) store.updateNotes(item.value.id, value)
 }
 
-function updateCreator(value: string) {
-  if (item.value) store.updateCreator(item.value.id, value)
+const editingDetails = ref(false)
+const draftTitle = ref('')
+const draftCreator = ref('')
+const draftYear = ref('')
+
+function openDetailsEditor() {
+  if (!item.value) return
+  draftTitle.value = item.value.title
+  draftCreator.value = itemCreator(item.value) ?? ''
+  draftYear.value = item.value.year ?? ''
+  editingDetails.value = true
+}
+
+function saveDetails() {
+  if (!item.value || !draftTitle.value.trim()) return
+  store.updateDetails(item.value.id, {
+    title: draftTitle.value,
+    creator: draftCreator.value,
+    year: draftYear.value,
+  })
+  editingDetails.value = false
 }
 
 function updateWhereToWatch(platforms: string[]) {
@@ -273,7 +292,8 @@ const isFirst = computed(() => itemIndex.value === 0)
           </div>
           <div class="detail__hero-actions">
             <StatusBadge :status="item.status" />
-            <AkButton variant="ghost" size="sm" @click="openCoverEditor">Editar capa</AkButton>
+            <AkButton variant="ghost" size="sm" @click="openDetailsEditor">Editar</AkButton>
+            <AkButton variant="ghost" size="sm" @click="openCoverEditor">Capa</AkButton>
           </div>
         </div>
       </div>
@@ -283,14 +303,9 @@ const isFirst = computed(() => itemIndex.value === 0)
         <p class="detail__overview">{{ item.overview }}</p>
       </section>
 
-      <section class="stack">
+      <section v-if="displayCreator" class="stack">
         <AkSectionHeader :title="creatorLabel" />
-        <AkInput
-          :model-value="item.creator ?? ''"
-          :placeholder="creatorLabel"
-          @update:model-value="updateCreator"
-        />
-        <AkButton v-if="displayCreator" variant="ghost" size="sm" @click="filterByCreator">
+        <AkButton variant="ghost" size="sm" @click="filterByCreator">
           Ver tudo de {{ displayCreator }}
         </AkButton>
       </section>
@@ -418,6 +433,25 @@ const isFirst = computed(() => itemIndex.value === 0)
         </template>
       </AkEmptyState>
     </div>
+
+    <AkSheet v-model:open="editingDetails" title="Editar informações" close-label="Fechar">
+      <div class="sheet-body">
+        <AkInput v-model="draftTitle" label="Título" required />
+        <AkInput v-model="draftCreator" :label="creatorLabel" :placeholder="creatorLabel" />
+        <NativeField
+          v-model="draftYear"
+          label="Ano"
+          inputmode="numeric"
+          placeholder="2024"
+          :maxlength="4"
+        />
+
+        <div class="sheet-actions">
+          <AkButton variant="secondary" @click="editingDetails = false">Cancelar</AkButton>
+          <AkButton :disabled="!draftTitle.trim()" @click="saveDetails">Salvar</AkButton>
+        </div>
+      </div>
+    </AkSheet>
 
     <!-- Cover editing lives in a sheet, not an inline panel (patterns.md). -->
     <AkSheet v-model:open="editingCover" title="Editar capa" close-label="Fechar">
