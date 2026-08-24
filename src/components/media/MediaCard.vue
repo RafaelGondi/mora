@@ -85,7 +85,7 @@ function openDetail() {
 
     <template #trailing>
       <div class="media-row__trailing">
-        <StatusBadge :status="item.status" />
+        <StatusBadge :status="item.status" :type="item.type" />
         <span v-if="reorderable" class="media-row__grip" aria-hidden="true" />
       </div>
     </template>

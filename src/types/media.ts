@@ -110,11 +110,60 @@ export const STATUS_COLORS: Record<BacklogStatus, string> = {
   dropped: 'var(--danger)',
 }
 
+/** Generic wording — for `other` and for views that mix categories. */
 export const STATUS_LABELS: Record<BacklogStatus, string> = {
   want: 'Quero ver',
   in_progress: 'Em andamento',
   completed: 'Concluído',
   dropped: 'Abandonado',
+}
+
+/**
+ * You don't "concluir" an album, you listen to it. Each category gets the verb
+ * it actually uses, with gender agreeing with the category noun (série is
+ * feminine, so "Assistida").
+ */
+const STATUS_LABELS_BY_TYPE: Partial<Record<MediaType, Record<BacklogStatus, string>>> = {
+  movie: {
+    want: 'Não assistido',
+    in_progress: 'Assistindo',
+    completed: 'Assistido',
+    dropped: 'Abandonado',
+  },
+  series: {
+    want: 'Não assistida',
+    in_progress: 'Assistindo',
+    completed: 'Assistida',
+    dropped: 'Abandonada',
+  },
+  book: {
+    want: 'Não lido',
+    in_progress: 'Lendo',
+    completed: 'Lido',
+    dropped: 'Abandonado',
+  },
+  game: {
+    want: 'Não jogado',
+    in_progress: 'Jogando',
+    completed: 'Zerado',
+    dropped: 'Abandonado',
+  },
+  album: {
+    want: 'Não ouvido',
+    in_progress: 'Ouvindo',
+    completed: 'Ouvido',
+    dropped: 'Abandonado',
+  },
+}
+
+/** Falls back to the generic wording when the type has no vocabulary of its own. */
+export function statusLabel(status: BacklogStatus, type?: MediaType): string {
+  if (!type) return STATUS_LABELS[status]
+  return STATUS_LABELS_BY_TYPE[type]?.[status] ?? STATUS_LABELS[status]
+}
+
+export function statusOptions(type?: MediaType): { value: BacklogStatus; label: string }[] {
+  return STATUS_OPTIONS.map(({ value }) => ({ value, label: statusLabel(value, type) }))
 }
 
 export const SUBTITLE_LABELS: Record<MediaType, string> = {

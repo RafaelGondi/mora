@@ -11,7 +11,7 @@ import { useRouter } from 'vue-router'
 import CoverImage from '@/components/media/CoverImage.vue'
 import {
   STATUS_COLORS,
-  STATUS_LABELS,
+  statusLabel,
   TYPE_COLORS,
   itemCreator,
 } from '@/types/media'
@@ -68,7 +68,7 @@ function open() {
         <span v-else-if="meta" class="tile__meta-text">{{ meta }}</span>
       </span>
 
-      <span class="sr-only">{{ STATUS_LABELS[item.status] }}</span>
+      <span class="sr-only">{{ statusLabel(item.status, item.type) }}</span>
     </button>
   </article>
 </template>

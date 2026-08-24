@@ -17,7 +17,7 @@ import {
 import { useBacklogStore } from '@/stores/backlog'
 import MediaTile from '@/components/media/MediaTile.vue'
 import { haptic } from '@/utils/haptic'
-import { MEDIA_TYPES, STATUS_OPTIONS, TYPE_COLORS, TYPE_LABELS } from '@/types/media'
+import { MEDIA_TYPES, STATUS_OPTIONS, TYPE_COLORS, TYPE_LABELS, statusOptions } from '@/types/media'
 import type { BacklogStatus, BacklogItem, MediaType } from '@/types/media'
 
 type DragIndexEvent = {
@@ -126,6 +126,8 @@ const filtered = computed(() =>
 )
 
 const typeCount = computed(() => store.countForType(filterType.value, filterStatus.value))
+
+const shelfStatusOptions = computed(() => statusOptions(filterType.value))
 
 const isFiltered = computed(() => Boolean(filterStatus.value || filterCreator.value.trim()))
 const canReorder = computed(() => !isFiltered.value)
@@ -277,7 +279,7 @@ function selectType(type: MediaType) {
 
       <div class="chip-row">
         <AkChip
-          v-for="s in STATUS_OPTIONS"
+          v-for="s in shelfStatusOptions"
           :key="s.value"
           :active="filterStatus === s.value"
           @click="filterStatus = filterStatus === s.value ? null : s.value"

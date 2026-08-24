@@ -19,7 +19,7 @@ import StatusBadge from '@/components/ui/StatusBadge.vue'
 import NativeField from '@/components/ui/NativeField.vue'
 import WhereToWatchSelect from '@/components/ui/WhereToWatchSelect.vue'
 import {
-  STATUS_OPTIONS,
+  statusOptions,
   TYPE_COLORS,
   TYPE_LABELS,
   CREATOR_LABELS,
@@ -116,6 +116,7 @@ const coverProcessing = ref(false)
 const coverError = ref<string | null>(null)
 const confirmRemove = ref(false)
 
+const itemStatusOptions = computed(() => statusOptions(item.value?.type))
 const creatorLabel = computed(() => (item.value ? CREATOR_LABELS[item.value.type] : ''))
 const displayCreator = computed(() => (item.value ? itemCreator(item.value) : undefined))
 const showWhereToWatch = computed(() => item.value && supportsWhereToWatch(item.value.type))
@@ -291,7 +292,7 @@ const isFirst = computed(() => itemIndex.value === 0)
             <p v-if="watchLabel" class="detail__meta">{{ watchLabel }}</p>
           </div>
           <div class="detail__hero-actions">
-            <StatusBadge :status="item.status" />
+            <StatusBadge :status="item.status" :type="item.type" />
             <AkButton variant="ghost" size="sm" @click="openDetailsEditor">Editar</AkButton>
             <AkButton variant="ghost" size="sm" @click="openCoverEditor">Capa</AkButton>
           </div>
@@ -383,7 +384,7 @@ const isFirst = computed(() => itemIndex.value === 0)
         <AkSectionHeader title="Status" />
         <div class="chip-row">
           <AkChip
-            v-for="s in STATUS_OPTIONS"
+            v-for="s in itemStatusOptions"
             :key="s.value"
             :active="item.status === s.value"
             @click="updateStatus(s.value)"
