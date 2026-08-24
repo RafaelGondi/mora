@@ -24,6 +24,11 @@
   padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + var(--space-6));
 }
 
+/* AkPageHeader already pays the top padding when it sits above the body. */
+.page-body--flush-top {
+  padding-top: 0;
+}
+
 .page-body.ak-page-body--with-fab {
   padding-bottom: calc(
     var(--nav-height) + var(--safe-bottom) + var(--space-3) + var(--fab-height) + var(--space-5)

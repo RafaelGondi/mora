@@ -230,33 +230,31 @@ function selectType(type: MediaType) {
 
 <template>
   <div class="ak-app-page ak-app-scroll">
-    <div class="page-body stack--lg">
-      <AkPageHeader label="Coleção" title="Fila" variant="flush">
-        <template #actions>
-          <AkIconButton
-            variant="ghost"
-            :label="searchOpen ? 'Fechar busca' : 'Buscar por autor'"
-            :icon="searchOpen ? 'x-outline' : 'search-outline'"
-            @click="searchOpen ? closeSearch() : (searchOpen = true)"
-          />
-        </template>
-      </AkPageHeader>
-
-      <!-- Shelf bar: which category you're looking at, and how deep it is. -->
-      <div class="shelf-bar">
-        <button class="shelf-bar__pick" type="button" @click="typeSheetOpen = true">
-          <span class="shelf-bar__name">{{ TYPE_LABELS[filterType] }}</span>
-          <span class="shelf-bar__change">
-            Mudar categoria
-            <AkIcon name="caret-down-outline" :size="14" />
-          </span>
+    <!-- The tab bar already says "Fila", so the page title carries the thing
+         that actually changes: which shelf you're on, and how deep it is. -->
+    <AkPageHeader label="Fila" variant="flush" size="md">
+      <template #title>
+        <button class="shelf-title" type="button" @click="typeSheetOpen = true">
+          {{ TYPE_LABELS[filterType] }}
+          <AkIcon name="caret-down-outline" :size="20" />
         </button>
-        <div class="shelf-bar__stat">
-          <span class="shelf-bar__stat-label">Na fila</span>
-          <span class="shelf-bar__stat-value numeric">{{ typeCount }}</span>
-        </div>
-      </div>
+      </template>
+      <template #meta>
+        <span class="numeric">{{ typeCount }}</span>
+        {{ typeCount === 1 ? 'item na fila' : 'itens na fila' }}
+        <template v-if="isFiltered">· {{ filtered.length }} com os filtros</template>
+      </template>
+      <template #actions>
+        <AkIconButton
+          variant="ghost"
+          :label="searchOpen ? 'Fechar busca' : 'Buscar por autor'"
+          :icon="searchOpen ? 'x-outline' : 'search-outline'"
+          @click="searchOpen ? closeSearch() : (searchOpen = true)"
+        />
+      </template>
+    </AkPageHeader>
 
+    <div class="page-body page-body--flush-top stack--lg">
       <section v-if="searchOpen" ref="searchAnchor" class="stack">
         <AkInput
           v-model="filterCreator"
@@ -314,7 +312,7 @@ function selectType(type: MediaType) {
           {{
             canReorder
               ? 'Segure um instante e arraste para reorganizar.'
-              : `${filtered.length} de ${typeCount} — limpe os filtros para reorganizar.`
+              : 'Limpe os filtros para reorganizar.'
           }}
         </p>
 
@@ -385,68 +383,31 @@ function selectType(type: MediaType) {
 </template>
 
 <style scoped>
-/* Shelf bar — a control, so a soft surface is fine; still no elevation. */
-.shelf-bar {
+/* The page title doubles as the shelf switcher. */
+.shelf-title {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--card-radius);
-  background: var(--bg-soft);
-}
-
-.shelf-bar__pick {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  gap: var(--space-2);
   padding: 0;
   border: 0;
   background: transparent;
-  text-align: left;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--text-display-md);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
   cursor: pointer;
 }
 
-.shelf-bar__pick:focus-visible {
+.shelf-title:focus-visible {
   outline: none;
   border-radius: var(--radius-sm);
   box-shadow: var(--focus-ring);
 }
 
-.shelf-bar__name {
-  font-family: var(--font-display);
-  font-size: var(--text-xl);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--text);
-}
-
-.shelf-bar__change {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--accent);
-}
-
-.shelf-bar__stat {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  flex-shrink: 0;
-}
-
-.shelf-bar__stat-label {
-  font-size: var(--text-2xs);
-  color: var(--text-secondary);
-}
-
-.shelf-bar__stat-value {
-  font-size: var(--text-xl);
-  font-weight: 700;
-  line-height: 1.1;
+.shelf-title:active {
+  opacity: 0.7;
 }
 
 .type-dot {

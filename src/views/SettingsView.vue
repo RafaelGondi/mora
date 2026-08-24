@@ -65,9 +65,9 @@ const syncHint = computed(() => {
 
 <template>
   <div class="ak-app-page ak-app-scroll">
-    <div class="page-body stack--lg">
-      <AkPageHeader label="Preferências" title="Ajustes" variant="flush" />
+    <AkPageHeader label="Preferências" title="Ajustes" variant="flush" size="md" />
 
+    <div class="page-body page-body--flush-top stack--lg">
       <section>
         <AkSectionHeader title="Aparência" />
         <AkList>
