@@ -29,7 +29,7 @@ const store = useBacklogStore()
 const router = useRouter()
 const route = useRoute()
 
-const filterType = ref<MediaType>('movie')
+const filterType = ref<MediaType>('book')
 const filterStatus = ref<BacklogStatus | null>(null)
 const filterCreator = ref('')
 
